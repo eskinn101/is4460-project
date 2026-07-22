@@ -1,21 +1,27 @@
 # Moderation
 
-Primitive website foundation for a health coaching app focused on diet, exercise, wellness support, and basic progress tracking.
+Django website foundation for a health coaching platform focused on customer health records, employee-managed recommendation data, and basic analytics for diet, exercise, wellness, and meal tracking.
 
-## Included pages
+## Included features
 
-- Home with separate mock login flows for customers and employees
-- Customer hub for basic navigation
-- Employee hub for editing recommendation entries that influence sample guidance
-- Chat page for both chatbot and coach messaging
-- Health page for goals, activity tracking, and wellness recommendations
-- Meal tracking page for simple nutrition logging
+- Django authentication with separate customer and employee access
+- Customer health profiles, goals, meal entries, and chat history stored in SQLite
+- Employee recommendation management with analytics-focused recommendation fields
+- Health analytics such as consistency scoring, calorie totals, and behavior insights
+- Protected multi-page interface for customer hub, employee hub, chat, health, and meals
+
+## Seeded accounts
+
+- Customer: `jordan@moderation.app` / `customer-demo`
+- Employee: `coach@moderation.app` / `employee-demo`
 
 ## Run locally
 
 ```bash
-npm install
-npm start
+python3 -m pip install django
+python3 manage.py makemigrations
+python3 manage.py migrate
+python3 manage.py runserver
 ```
 
-Then open `http://localhost:3000`.
+Then open `http://127.0.0.1:8000`.

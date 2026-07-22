@@ -1,12 +1,12 @@
 {
   "name": "is4460-project",
   "version": "1.0.0",
-  "description": "Moderation primitive health coaching web app foundation.",
-  "main": "server.js",
+  "description": "Moderation Django health coaching platform.",
   "scripts": {
-    "start": "node server.js",
-    "dev": "node --watch server.js",
-    "test": "echo \"No automated tests configured yet\""
+    "start": "python3 manage.py runserver",
+    "dev": "python3 manage.py runserver",
+    "migrate": "python3 manage.py migrate",
+    "test": "python3 manage.py test"
   },
   "repository": {
     "type": "git",
@@ -19,8 +19,5 @@
   "bugs": {
     "url": "https://github.com/eskinn101/is4460-project/issues"
   },
-  "homepage": "https://github.com/eskinn101/is4460-project#readme",
-  "dependencies": {
-    "express": "^5.2.1"
-  }
+  "homepage": "https://github.com/eskinn101/is4460-project#readme"
 }

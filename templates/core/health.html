@@ -1,0 +1,97 @@
+{% extends 'core/base.html' %}
+
+{% block title %}Moderation | Health{% endblock %}
+{% block brand_subtitle %}Health Tracking{% endblock %}
+
+{% block content %}
+<section class="page-header">
+  <span class="eyebrow">Personal progress</span>
+  <h1>Track health goals, activity, and wellness focus.</h1>
+  <p>
+    This page uses database-backed customer records and derives health analytics from the current saved metrics.
+  </p>
+</section>
+
+<section class="stats-grid">
+  <article class="stat">
+    <span class="stat-label">Steps</span>
+    <strong>{{ analytics.steps }}</strong>
+    <p>Current stored movement total.</p>
+  </article>
+  <article class="stat">
+    <span class="stat-label">Hydration</span>
+    <strong>{{ analytics.water_oz }} oz</strong>
+    <p>Logged water intake for the day.</p>
+  </article>
+  <article class="stat">
+    <span class="stat-label">Sleep</span>
+    <strong>{{ analytics.sleep_hours }} hrs</strong>
+    <p>Rest baseline feeding recovery analytics.</p>
+  </article>
+</section>
+
+<section class="grid-2" style="margin-top: 24px;">
+  <article class="panel">
+    <div class="kicker">Current guidance</div>
+    <h2>Daily recommendation</h2>
+    <p>{{ request.user.health_profile.daily_recommendation }}</p>
+    <div class="footer-note"><strong>Wellness focus:</strong> {{ request.user.health_profile.wellness_focus }}</div>
+    <div class="list-stack">
+      {% for goal in request.user.health_goals.all %}
+        <article class="list-item"><strong>{{ goal.title }}</strong><p>Tracked within your personal health plan.</p></article>
+      {% endfor %}
+    </div>
+  </article>
+
+  <article class="panel">
+    <div class="kicker">Update plan</div>
+    <h2>Edit tracked health details</h2>
+    <form method="post">
+      {% csrf_token %}
+      <div>
+        <label for="goals">Goals, one per line</label>
+        <textarea id="goals" name="goals" required>{{ goals_text }}</textarea>
+      </div>
+      <div>
+        <label for="{{ form.daily_recommendation.id_for_label }}">Daily recommendation</label>
+        {{ form.daily_recommendation }}
+      </div>
+      <div>
+        <label for="{{ form.wellness_focus.id_for_label }}">Wellness focus</label>
+        {{ form.wellness_focus }}
+      </div>
+      <div class="grid-2">
+        <div>
+          <label for="{{ form.steps.id_for_label }}">Steps</label>
+          {{ form.steps }}
+        </div>
+        <div>
+          <label for="{{ form.water_oz.id_for_label }}">Water ounces</label>
+          {{ form.water_oz }}
+        </div>
+      </div>
+      <div class="grid-2">
+        <div>
+          <label for="{{ form.sleep_hours.id_for_label }}">Sleep hours</label>
+          {{ form.sleep_hours }}
+        </div>
+        <div>
+          <label for="{{ form.workouts_per_week.id_for_label }}">Workouts this week</label>
+          {{ form.workouts_per_week }}
+        </div>
+      </div>
+      <button type="submit">Save health plan</button>
+    </form>
+  </article>
+</section>
+
+<section class="panel" style="margin-top: 24px;">
+  <div class="kicker">Activity analysis</div>
+  <h2>Behavior notes</h2>
+  <div class="list-stack">
+    {% for insight in analytics.insights %}
+      <article class="list-item"><p>{{ insight }}</p></article>
+    {% endfor %}
+  </div>
+</section>
+{% endblock %}

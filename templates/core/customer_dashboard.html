@@ -1,0 +1,85 @@
+{% extends 'core/base.html' %}
+
+{% block title %}Moderation | Customer Hub{% endblock %}
+{% block brand_subtitle %}Customer Hub{% endblock %}
+
+{% block content %}
+<section class="page-header">
+  <span class="eyebrow">Customer experience</span>
+  <h1>Your wellness dashboard starts here.</h1>
+  <p>
+    This customer hub pulls from stored profile data, recommendations, and analytics instead of placeholder content.
+  </p>
+</section>
+
+<section class="stats-grid">
+  <article class="stat">
+    <span class="stat-label">Consistency score</span>
+    <strong>{{ analytics.consistency_score }}</strong>
+    <p>Combined score from activity, hydration, sleep, and workout rhythm.</p>
+  </article>
+  <article class="stat">
+    <span class="stat-label">Calories today</span>
+    <strong>{{ analytics.total_calories }}</strong>
+    <p>Meal tracking total from saved customer records.</p>
+  </article>
+  <article class="stat">
+    <span class="stat-label">Active goals</span>
+    <strong>{{ analytics.goal_count }}</strong>
+    <p>Current health targets used to shape guidance.</p>
+  </article>
+</section>
+
+<section class="grid-3" style="margin-top: 24px;">
+  <article class="feature-card">
+    <span>Chat support</span>
+    <h3>Talk to the bot and a coach</h3>
+    <p>Messages now reference saved health data and stored recommendations.</p>
+    <a class="button" href="{% url 'chat' %}">Open chat page</a>
+  </article>
+  <article class="feature-card">
+    <span>Health planning</span>
+    <h3>Track goals and activity</h3>
+    <p>Update current metrics and monitor the analytics consequences immediately.</p>
+    <a class="button" href="{% url 'health' %}">View health page</a>
+  </article>
+  <article class="feature-card">
+    <span>Meal awareness</span>
+    <h3>Log meals and patterns</h3>
+    <p>Stored meal data feeds nutrition totals and recommendation context.</p>
+    <a class="button" href="{% url 'meals' %}">Go to meals</a>
+  </article>
+</section>
+
+<section class="grid-2" style="margin-top: 24px;">
+  <article class="panel">
+    <div class="kicker">Primary recommendation</div>
+    <h2>{{ analytics.primary_recommendation.title }}</h2>
+    <p>{{ analytics.primary_recommendation.guidance }}</p>
+    <div class="footer-note">Analytics focus: {{ analytics.primary_recommendation.analytics_focus }}</div>
+  </article>
+  <article class="panel">
+    <div class="kicker">Behavior insights</div>
+    <h2>Current health analytics</h2>
+    <div class="list-stack">
+      {% for insight in analytics.insights %}
+        <article class="list-item"><p>{{ insight }}</p></article>
+      {% endfor %}
+    </div>
+  </article>
+</section>
+
+<section class="panel" style="margin-top: 24px;">
+  <div class="kicker">Recommendation library</div>
+  <h2>Relevant next recommendations</h2>
+  <div class="list-stack">
+    {% for recommendation in recommendations %}
+      <article class="list-item">
+        <small>{{ recommendation.category }}</small>
+        <strong>{{ recommendation.title }}</strong>
+        <p>{{ recommendation.guidance }}</p>
+      </article>
+    {% endfor %}
+  </div>
+</section>
+{% endblock %}

@@ -1,0 +1,70 @@
+{% extends 'core/base.html' %}
+
+{% block title %}Moderation | Employee Hub{% endblock %}
+{% block brand_subtitle %}Employee Hub{% endblock %}
+
+{% block content %}
+<section class="page-header">
+  <span class="eyebrow">Coaching operations</span>
+  <h1>Guide what the platform recommends.</h1>
+  <p>
+    Employees can manage recommendation records and review customer analytics that shape future machine guidance.
+  </p>
+</section>
+
+<section class="grid-2">
+  <article class="panel">
+    <div class="kicker">Recommendation editor</div>
+    <h2>Add a knowledge entry</h2>
+    <form method="post">
+      {% csrf_token %}
+      <div>
+        <label for="{{ form.title.id_for_label }}">Title</label>
+        {{ form.title }}
+      </div>
+      <div>
+        <label for="{{ form.category.id_for_label }}">Category</label>
+        {{ form.category }}
+      </div>
+      <div>
+        <label for="{{ form.guidance.id_for_label }}">Guidance</label>
+        {{ form.guidance }}
+      </div>
+      <div>
+        <label for="{{ form.analytics_focus.id_for_label }}">Analytics focus</label>
+        {{ form.analytics_focus }}
+      </div>
+      <button type="submit">Save recommendation</button>
+    </form>
+  </article>
+
+  <article class="panel">
+    <div class="kicker">Live knowledge base</div>
+    <h2>Current recommendation library</h2>
+    <div class="list-stack">
+      {% for recommendation in recommendations %}
+        <article class="list-item">
+          <small>{{ recommendation.category }}{% if recommendation.created_by %} • {{ recommendation.created_by.get_full_name|default:recommendation.created_by.username }}{% endif %}</small>
+          <strong>{{ recommendation.title }}</strong>
+          <p>{{ recommendation.guidance }}</p>
+        </article>
+      {% endfor %}
+    </div>
+  </article>
+</section>
+
+<section class="panel" style="margin-top: 24px;">
+  <div class="kicker">Customer analytics</div>
+  <h2>Customer health overview</h2>
+  <div class="grid-2">
+    {% for card in customer_cards %}
+      <article class="feature-card">
+        <span>{{ card.user.get_full_name }}</span>
+        <h3>Consistency score: {{ card.analytics.consistency_score }}</h3>
+        <p>Focus: {{ card.user.health_profile.wellness_focus }}</p>
+        <p>Calories today: {{ card.analytics.total_calories }} • Goals: {{ card.analytics.goal_count }}</p>
+      </article>
+    {% endfor %}
+  </div>
+</section>
+{% endblock %}

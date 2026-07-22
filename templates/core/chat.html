@@ -1,0 +1,68 @@
+{% extends 'core/base.html' %}
+
+{% block title %}Moderation | Chat{% endblock %}
+{% block brand_subtitle %}Guidance Chat{% endblock %}
+
+{% block content %}
+<section class="page-header">
+  <span class="eyebrow">Two support channels</span>
+  <h1>Message the bot and your coach from one page.</h1>
+  <p>
+    Responses are now generated from saved customer metrics and employee-managed recommendation data.
+  </p>
+</section>
+
+<section class="chat-grid">
+  <article class="message-column">
+    <div class="split-header">
+      <div>
+        <div class="kicker">AI support</div>
+        <h2>Moderation Bot</h2>
+      </div>
+    </div>
+    <form method="post">
+      {% csrf_token %}
+      {{ chatbot_form.channel }}
+      <div>
+        <label for="{{ chatbot_form.message.id_for_label }}">Message</label>
+        {{ chatbot_form.message }}
+      </div>
+      <button type="submit">Send to bot</button>
+    </form>
+    <div class="message-stream">
+      {% for entry in chatbot_messages %}
+        <article class="message-bubble">
+          <span class="message-meta">{{ entry.author_name }} • {{ entry.created_at|date:'g:i A' }}</span>
+          <p>{{ entry.message }}</p>
+        </article>
+      {% endfor %}
+    </div>
+  </article>
+
+  <article class="message-column">
+    <div class="split-header">
+      <div>
+        <div class="kicker">Human support</div>
+        <h2>Coach channel</h2>
+      </div>
+    </div>
+    <form method="post">
+      {% csrf_token %}
+      {{ coach_form.channel }}
+      <div>
+        <label for="{{ coach_form.message.id_for_label }}">Message</label>
+        {{ coach_form.message }}
+      </div>
+      <button type="submit">Send to coach</button>
+    </form>
+    <div class="message-stream">
+      {% for entry in coach_messages %}
+        <article class="message-bubble">
+          <span class="message-meta">{{ entry.author_name }} • {{ entry.created_at|date:'g:i A' }}</span>
+          <p>{{ entry.message }}</p>
+        </article>
+      {% endfor %}
+    </div>
+  </article>
+</section>
+{% endblock %}

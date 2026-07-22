@@ -1,0 +1,88 @@
+{% extends 'core/base.html' %}
+
+{% block title %}Moderation | Home{% endblock %}
+
+{% block content %}
+<section class="hero">
+  <div class="hero-copy">
+    <span class="eyebrow">Balanced support for real people</span>
+    <h1>Moderation helps health goals feel practical.</h1>
+    <p>
+      This Django-based foundation combines protected customer data, employee-managed recommendation logic, and analytics-aware guidance for diet, exercise, and wellness management.
+    </p>
+    <div class="hero-actions">
+      <span class="button static-button">Backend-ready customer records</span>
+      <span class="button secondary static-button">Analytics-backed recommendations</span>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="split-header">
+      <div>
+        <div class="kicker">Backend features</div>
+        <h2>What this stack supports now</h2>
+      </div>
+    </div>
+    <div class="list-stack">
+      <article class="list-item">
+        <strong>Protected user accounts</strong>
+        <p>Django authentication and session-backed routing for customer and employee access.</p>
+      </article>
+      <article class="list-item">
+        <strong>Customer health records</strong>
+        <p>Stored profiles, goals, meal logs, chat history, and recommendation data in SQLite.</p>
+      </article>
+      <article class="list-item">
+        <strong>Primitive analytics layer</strong>
+        <p>Health scoring, pattern insights, and recommendation targeting derived from saved customer data.</p>
+      </article>
+    </div>
+  </div>
+</section>
+
+<section class="grid-2">
+  <article class="panel login-card">
+    <div>
+      <div class="kicker">Customer access</div>
+      <h2>Customer sign-in</h2>
+      <p>Use the protected customer account to review health analytics, meals, and recommendations.</p>
+    </div>
+    <form method="post">
+      {% csrf_token %}
+      {{ customer_form.role }}
+      <div>
+        <label for="{{ customer_form.email.id_for_label }}">Email</label>
+        {{ customer_form.email }}
+      </div>
+      <div>
+        <label for="{{ customer_form.password.id_for_label }}">Password</label>
+        {{ customer_form.password }}
+      </div>
+      <p>Seeded login: jordan@moderation.app / customer-demo</p>
+      <button type="submit">Continue as customer</button>
+    </form>
+  </article>
+
+  <article class="panel login-card">
+    <div>
+      <div class="kicker">Employee access</div>
+      <h2>Employee sign-in</h2>
+      <p>Use the employee account to manage recommendation data and review customer analytics.</p>
+    </div>
+    <form method="post">
+      {% csrf_token %}
+      {{ employee_form.role }}
+      <div>
+        <label for="{{ employee_form.email.id_for_label }}">Email</label>
+        {{ employee_form.email }}
+      </div>
+      <div>
+        <label for="{{ employee_form.password.id_for_label }}">Password</label>
+        {{ employee_form.password }}
+      </div>
+      <p>Seeded login: coach@moderation.app / employee-demo</p>
+      <button type="submit">Continue as employee</button>
+    </form>
+  </article>
+</section>
+{% endblock %}

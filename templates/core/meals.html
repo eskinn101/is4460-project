@@ -1,0 +1,62 @@
+{% extends 'core/base.html' %}
+
+{% block title %}Moderation | Meals{% endblock %}
+{% block brand_subtitle %}Meal Tracking{% endblock %}
+
+{% block content %}
+<section class="page-header">
+  <span class="eyebrow">Nutrition visibility</span>
+  <h1>Keep a simple meal log tied to your wellness goals.</h1>
+  <p>
+    Meal entries are stored as backend customer records and directly affect calorie tracking and recommendations.
+  </p>
+</section>
+
+<section class="grid-2">
+  <article class="panel">
+    <div class="split-header">
+      <div>
+        <div class="kicker">Meal form</div>
+        <h2>Add a meal</h2>
+      </div>
+      <div class="stat-label">Daily calories: {{ analytics.total_calories }}</div>
+    </div>
+    <form method="post">
+      {% csrf_token %}
+      <div>
+        <label for="{{ form.meal_name.id_for_label }}">Meal name</label>
+        {{ form.meal_name }}
+      </div>
+      <div class="grid-2">
+        <div>
+          <label for="{{ form.time_of_day.id_for_label }}">Time of day</label>
+          {{ form.time_of_day }}
+        </div>
+        <div>
+          <label for="{{ form.calories.id_for_label }}">Calories</label>
+          {{ form.calories }}
+        </div>
+      </div>
+      <div>
+        <label for="{{ form.notes.id_for_label }}">Notes</label>
+        {{ form.notes }}
+      </div>
+      <button type="submit">Log meal</button>
+    </form>
+  </article>
+
+  <article class="panel">
+    <div class="kicker">Meal history</div>
+    <h2>Recent entries</h2>
+    <div class="list-stack">
+      {% for meal in meals %}
+        <article class="list-item">
+          <small>{{ meal.time_of_day }} • {{ meal.calories }} calories • {{ meal.consumed_at|date:'M j, g:i A' }}</small>
+          <strong>{{ meal.meal_name }}</strong>
+          <p>{{ meal.notes|default:'No notes added.' }}</p>
+        </article>
+      {% endfor %}
+    </div>
+  </article>
+</section>
+{% endblock %}
