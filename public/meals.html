@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Moderation | Meals</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body data-page="meals">
+    <div class="shell">
+      <header class="topbar">
+        <a class="brand" href="/">
+          <div class="brand-mark">M</div>
+          <div>
+            <div>Moderation</div>
+            <small>Meal Tracking</small>
+          </div>
+        </a>
+        <nav class="nav">
+          <a href="/">Home</a>
+          <a href="/customer">Customer</a>
+          <a href="/employee">Employee</a>
+          <a href="/chat">Chat</a>
+          <a href="/health">Health</a>
+          <a class="active" href="/meals">Meals</a>
+        </nav>
+      </header>
+
+      <section class="page-header">
+        <span class="eyebrow">Nutrition visibility</span>
+        <h1>Keep a simple meal log tied to your wellness goals.</h1>
+        <p>
+          The meal page is intentionally basic. It gives a customer a visible place to record meals and start spotting intake patterns before deeper analytics are added.
+        </p>
+      </section>
+
+      <section class="grid-2">
+        <article class="panel">
+          <div class="split-header">
+            <div>
+              <div class="kicker">Meal form</div>
+              <h2>Add a meal</h2>
+            </div>
+            <div class="stat-label">Daily calories: <span id="meal-calories">0</span></div>
+          </div>
+          <form id="meal-form">
+            <div>
+              <label for="mealName">Meal name</label>
+              <input id="mealName" name="mealName" type="text" placeholder="Salmon bowl" required />
+            </div>
+            <div class="grid-2">
+              <div>
+                <label for="timeOfDay">Time of day</label>
+                <select id="timeOfDay" name="timeOfDay" required>
+                  <option value="Breakfast">Breakfast</option>
+                  <option value="Lunch">Lunch</option>
+                  <option value="Dinner">Dinner</option>
+                  <option value="Snack">Snack</option>
+                </select>
+              </div>
+              <div>
+                <label for="calories">Calories</label>
+                <input id="calories" name="calories" type="number" min="0" placeholder="520" />
+              </div>
+            </div>
+            <div>
+              <label for="notes">Notes</label>
+              <textarea id="notes" name="notes" placeholder="Ingredients, cravings, prep notes, how you felt."></textarea>
+            </div>
+            <button type="submit">Log meal</button>
+          </form>
+        </article>
+
+        <article class="panel">
+          <div class="kicker">Meal history</div>
+          <h2>Recent entries</h2>
+          <div id="meal-list" class="list-stack"></div>
+        </article>
+      </section>
+    </div>
+
+    <script src="/app.js"></script>
+  </body>
+</html>

@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Moderation | Health</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body data-page="health">
+    <div class="shell">
+      <header class="topbar">
+        <a class="brand" href="/">
+          <div class="brand-mark">M</div>
+          <div>
+            <div>Moderation</div>
+            <small>Health Tracking</small>
+          </div>
+        </a>
+        <nav class="nav">
+          <a href="/">Home</a>
+          <a href="/customer">Customer</a>
+          <a href="/employee">Employee</a>
+          <a href="/chat">Chat</a>
+          <a class="active" href="/health">Health</a>
+          <a href="/meals">Meals</a>
+        </nav>
+      </header>
+
+      <section class="page-header">
+        <span class="eyebrow">Personal progress</span>
+        <h1>Track health goals, activity, and wellness focus.</h1>
+        <p>
+          This page is structured for a single user today, with editable targets, daily recommendations, and basic activity analysis that can later be expanded into account-based tracking.
+        </p>
+      </section>
+
+      <section class="stats-grid">
+        <article class="stat">
+          <span class="stat-label">Steps</span>
+          <strong id="steps-stat">0</strong>
+          <p>Current daily movement total.</p>
+        </article>
+        <article class="stat">
+          <span class="stat-label">Hydration</span>
+          <strong id="water-stat">0 oz</strong>
+          <p>Logged water intake for the day.</p>
+        </article>
+        <article class="stat">
+          <span class="stat-label">Sleep</span>
+          <strong id="sleep-stat">0 hrs</strong>
+          <p>Rest quality baseline for recovery.</p>
+        </article>
+      </section>
+
+      <section class="grid-2" style="margin-top: 24px;">
+        <article class="panel">
+          <div class="kicker">Current guidance</div>
+          <h2>Daily recommendation</h2>
+          <p id="daily-recommendation"></p>
+          <div class="footer-note">
+            <strong>Wellness focus:</strong>
+            <span id="wellness-focus"></span>
+          </div>
+          <div id="goals-list" class="list-stack"></div>
+        </article>
+
+        <article class="panel">
+          <div class="kicker">Update plan</div>
+          <h2>Edit tracked health details</h2>
+          <form id="health-form">
+            <div>
+              <label for="goals">Goals, one per line</label>
+              <textarea id="goals" name="goals" required></textarea>
+            </div>
+            <div>
+              <label for="dailyRecommendation">Daily recommendation</label>
+              <textarea id="dailyRecommendation" name="dailyRecommendation" required></textarea>
+            </div>
+            <div>
+              <label for="wellnessFocus">Wellness focus</label>
+              <input id="wellnessFocus" name="wellnessFocus" type="text" required />
+            </div>
+            <div class="grid-2">
+              <div>
+                <label for="steps">Steps</label>
+                <input id="steps" name="steps" type="number" min="0" required />
+              </div>
+              <div>
+                <label for="waterOz">Water ounces</label>
+                <input id="waterOz" name="waterOz" type="number" min="0" required />
+              </div>
+            </div>
+            <div class="grid-2">
+              <div>
+                <label for="sleepHours">Sleep hours</label>
+                <input id="sleepHours" name="sleepHours" type="number" min="0" step="0.1" required />
+              </div>
+              <div>
+                <label for="workouts">Workouts this week</label>
+                <input id="workouts" name="workouts" type="number" min="0" required />
+              </div>
+            </div>
+            <button type="submit">Save health plan</button>
+          </form>
+        </article>
+      </section>
+
+      <section class="panel" style="margin-top: 24px;">
+        <div class="kicker">Activity analysis</div>
+        <h2>Behavior notes</h2>
+        <div id="analysis-list" class="list-stack"></div>
+      </section>
+    </div>
+
+    <script src="/app.js"></script>
+  </body>
+</html>

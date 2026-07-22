@@ -1,0 +1,26 @@
+{
+  "name": "is4460-project",
+  "version": "1.0.0",
+  "description": "Moderation primitive health coaching web app foundation.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js",
+    "test": "echo \"No automated tests configured yet\""
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/eskinn101/is4460-project.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/eskinn101/is4460-project/issues"
+  },
+  "homepage": "https://github.com/eskinn101/is4460-project#readme",
+  "dependencies": {
+    "express": "^5.2.1"
+  }
+}
