@@ -7,17 +7,6 @@ const app = express();
 const port = process.env.PORT || 3000;
 const publicDir = path.join(__dirname, 'public');
 const dataFile = path.join(__dirname, 'data', 'store.json');
-const sessions = new Map();
-const credentials = {
-  customer: {
-    email: 'jordan@moderation.app',
-    password: 'customer-demo'
-  },
-  employee: {
-    email: 'coach@moderation.app',
-    password: 'employee-demo'
-  }
-};
 
 app.use(express.json());
 
@@ -39,11 +28,66 @@ function parseCookies(cookieHeader = '') {
     }, {});
 }
 
-app.use((req, _res, next) => {
-  const cookies = parseCookies(req.headers.cookie);
-  req.session = cookies.moderationSession ? sessions.get(cookies.moderationSession) : null;
-  req.sessionId = cookies.moderationSession || null;
-  next();
+function hashPassword(password, salt) {
+  return crypto.scryptSync(password, salt, 64).toString('hex');
+}
+
+function verifyPassword(password, user) {
+  if (!user?.passwordSalt || !user?.passwordHash) {
+    return false;
+  }
+
+  return crypto.timingSafeEqual(
+    Buffer.from(user.passwordHash, 'hex'),
+    Buffer.from(hashPassword(password, user.passwordSalt), 'hex')
+  );
+}
+
+function publicUserProfile(user) {
+  return {
+    id: user.id,
+    name: user.name,
+    email: user.email,
+    role: user.role,
+    goals: user.goals,
+    dailyRecommendation: user.dailyRecommendation,
+    wellnessFocus: user.wellnessFocus,
+    activity: user.activity,
+    analysis: user.analysis,
+    meals: user.meals
+  };
+}
+
+async function getUserByEmail(store, email) {
+  return Object.values(store.users).find((user) => user.email === email) || null;
+}
+
+app.use(async (req, _res, next) => {
+  try {
+    const cookies = parseCookies(req.headers.cookie);
+    const sessionId = cookies.moderationSession || null;
+    req.sessionId = sessionId;
+    req.session = null;
+    req.user = null;
+
+    if (!sessionId) {
+      return next();
+    }
+
+    const store = await readStore();
+    const session = store.sessions?.[sessionId];
+    const user = session ? store.users?.[session.userId] : null;
+
+    if (!session || !user) {
+      return next();
+    }
+
+    req.session = session;
+    req.user = user;
+    next();
+  } catch (error) {
+    next(error);
+  }
 });
 
 app.use((req, res, next) => {
@@ -68,7 +112,7 @@ const pageMap = {
 const protectedPages = new Set(['/customer', '/employee', '/chat', '/health', '/meals']);
 
 function requireLogin(req, res, next) {
-  if (!req.session) {
+  if (!req.user) {
     if (req.path.startsWith('/api/')) {
       return res.status(401).json({ error: 'Login required' });
     }
@@ -80,11 +124,11 @@ function requireLogin(req, res, next) {
 }
 
 function requireEmployee(req, res, next) {
-  if (!req.session) {
+  if (!req.user) {
     return res.status(401).json({ error: 'Login required' });
   }
 
-  if (req.session.role !== 'employee') {
+  if (req.user.role !== 'employee') {
     return res.status(403).json({ error: 'Employee access required' });
   }
 
@@ -102,11 +146,11 @@ async function writeStore(nextStore) {
 
 for (const [route, page] of Object.entries(pageMap)) {
   app.get(route, (req, res, next) => {
-    if (protectedPages.has(route) && !req.session) {
+    if (protectedPages.has(route) && !req.user) {
       return res.redirect('/');
     }
 
-    if (route === '/employee' && req.session?.role !== 'employee') {
+    if (route === '/employee' && req.user?.role !== 'employee') {
       return res.redirect('/customer');
     }
 
@@ -115,38 +159,61 @@ for (const [route, page] of Object.entries(pageMap)) {
 }
 
 app.get('/api/session', (req, res) => {
-  if (!req.session) {
+  if (!req.user) {
     return res.json({ authenticated: false });
   }
 
   res.json({
     authenticated: true,
-    role: req.session.role,
-    home: req.session.role === 'employee' ? '/employee' : '/customer'
+    role: req.user.role,
+    home: req.user.role === 'employee' ? '/employee' : '/customer',
+    user: {
+      id: req.user.id,
+      name: req.user.name,
+      email: req.user.email
+    }
   });
 });
 
-app.post('/api/login', (req, res) => {
-  const { role, email, password } = req.body;
-  const account = credentials[role];
+app.post('/api/login', async (req, res, next) => {
+  try {
+    const { role, email, password } = req.body;
+    const store = await readStore();
+    const user = await getUserByEmail(store, email);
 
-  if (!account || account.email !== email || account.password !== password) {
-    return res.status(401).json({ error: 'Invalid login details' });
+    if (!user || user.role !== role || !verifyPassword(password, user)) {
+      return res.status(401).json({ error: 'Invalid login details' });
+    }
+
+    const sessionId = crypto.randomUUID();
+    store.sessions[sessionId] = {
+      id: sessionId,
+      userId: user.id,
+      role: user.role,
+      createdAt: new Date().toISOString()
+    };
+
+    await writeStore(store);
+    res.setHeader('Set-Cookie', `moderationSession=${sessionId}; Path=/; HttpOnly; SameSite=Lax`);
+    res.json({ success: true, redirectTo: user.role === 'employee' ? '/employee' : '/customer' });
+  } catch (error) {
+    next(error);
   }
-
-  const sessionId = crypto.randomUUID();
-  sessions.set(sessionId, { role, email });
-  res.setHeader('Set-Cookie', `moderationSession=${sessionId}; Path=/; HttpOnly; SameSite=Lax`);
-  res.json({ success: true, redirectTo: role === 'employee' ? '/employee' : '/customer' });
 });
 
-app.post('/api/logout', (req, res) => {
-  if (req.sessionId) {
-    sessions.delete(req.sessionId);
-  }
+app.post('/api/logout', async (req, res, next) => {
+  try {
+    if (req.sessionId) {
+      const store = await readStore();
+      delete store.sessions[req.sessionId];
+      await writeStore(store);
+    }
 
-  res.setHeader('Set-Cookie', 'moderationSession=; Path=/; HttpOnly; Max-Age=0; SameSite=Lax');
-  res.json({ success: true });
+    res.setHeader('Set-Cookie', 'moderationSession=; Path=/; HttpOnly; Max-Age=0; SameSite=Lax');
+    res.json({ success: true });
+  } catch (error) {
+    next(error);
+  }
 });
 
 app.get('/api/knowledge', requireEmployee, async (_req, res, next) => {
@@ -185,7 +252,8 @@ app.post('/api/knowledge', requireEmployee, async (req, res, next) => {
 app.get('/api/health', requireLogin, async (_req, res, next) => {
   try {
     const store = await readStore();
-    res.json(store.users['demo-user']);
+    const profile = store.users[_req.user.id];
+    res.json(publicUserProfile(profile));
   } catch (error) {
     next(error);
   }
@@ -195,7 +263,7 @@ app.post('/api/health', requireLogin, async (req, res, next) => {
   try {
     const { goals, dailyRecommendation, wellnessFocus, activity } = req.body;
     const store = await readStore();
-    const profile = store.users['demo-user'];
+    const profile = store.users[req.user.id];
 
     profile.goals = Array.isArray(goals) ? goals : profile.goals;
     profile.dailyRecommendation = dailyRecommendation || profile.dailyRecommendation;
@@ -203,7 +271,7 @@ app.post('/api/health', requireLogin, async (req, res, next) => {
     profile.activity = activity || profile.activity;
 
     await writeStore(store);
-    res.json(profile);
+    res.json(publicUserProfile(profile));
   } catch (error) {
     next(error);
   }
@@ -212,7 +280,7 @@ app.post('/api/health', requireLogin, async (req, res, next) => {
 app.get('/api/meals', requireLogin, async (_req, res, next) => {
   try {
     const store = await readStore();
-    res.json(store.users['demo-user'].meals);
+    res.json(store.users[_req.user.id].meals);
   } catch (error) {
     next(error);
   }
@@ -234,7 +302,7 @@ app.post('/api/meals', requireLogin, async (req, res, next) => {
       calories: Number(calories) || 0
     };
 
-    store.users['demo-user'].meals.unshift(meal);
+    store.users[req.user.id].meals.unshift(meal);
     await writeStore(store);
     res.status(201).json(meal);
   } catch (error) {
@@ -245,7 +313,7 @@ app.post('/api/meals', requireLogin, async (req, res, next) => {
 app.get('/api/chat', requireLogin, async (_req, res, next) => {
   try {
     const store = await readStore();
-    res.json(store.chats);
+    res.json(store.users[_req.user.id].chats);
   } catch (error) {
     next(error);
   }
@@ -259,7 +327,8 @@ app.post('/api/chat', requireLogin, async (req, res, next) => {
     }
 
     const store = await readStore();
-    if (!store.chats[channel]) {
+    const user = store.users[req.user.id];
+    if (!user.chats[channel]) {
       return res.status(400).json({ error: 'invalid chat channel' });
     }
 
@@ -281,9 +350,9 @@ app.post('/api/chat', requireLogin, async (req, res, next) => {
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     };
 
-    store.chats[channel].push(entry, automatedResponse);
+    user.chats[channel].push(entry, automatedResponse);
     await writeStore(store);
-    res.status(201).json(store.chats[channel]);
+    res.status(201).json(user.chats[channel]);
   } catch (error) {
     next(error);
   }
