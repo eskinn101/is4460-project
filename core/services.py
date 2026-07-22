@@ -73,3 +73,47 @@ def build_chat_response(user, channel, incoming_message):
         f"{prefix}, your consistency score is {analytics['consistency_score']}. "
         f"Top next step: {guidance} You mentioned: '{incoming_message[:90]}'."
     )
+
+
+def serialize_recommendation(recommendation):
+    if not recommendation:
+        return None
+
+    return {
+        "id": recommendation.id,
+        "title": recommendation.title,
+        "category": recommendation.category,
+        "guidance": recommendation.guidance,
+        "analytics_focus": recommendation.analytics_focus,
+    }
+
+
+def customer_summary_payload(user):
+    analytics = customer_analytics(user)
+    goals = list(user.health_goals.values_list("title", flat=True))
+
+    return {
+        "profile": {
+            "daily_recommendation": user.health_profile.daily_recommendation,
+            "wellness_focus": user.health_profile.wellness_focus,
+            "steps": user.health_profile.steps,
+            "water_oz": user.health_profile.water_oz,
+            "sleep_hours": float(user.health_profile.sleep_hours),
+            "workouts_per_week": user.health_profile.workouts_per_week,
+        },
+        "goals": goals,
+        "analytics": {
+            "steps": analytics["steps"],
+            "water_oz": analytics["water_oz"],
+            "sleep_hours": float(analytics["sleep_hours"]),
+            "workouts_per_week": analytics["workouts_per_week"],
+            "consistency_score": analytics["consistency_score"],
+            "total_calories": analytics["total_calories"],
+            "goal_count": analytics["goal_count"],
+            "insights": analytics["insights"],
+        },
+        "recommendations": {
+            "primary": serialize_recommendation(analytics["primary_recommendation"]),
+            "relevant": [serialize_recommendation(item) for item in relevant_recommendations(user)],
+        },
+    }

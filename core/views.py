@@ -3,13 +3,13 @@ from functools import wraps
 from django.contrib import messages
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required
-from django.http import HttpResponseForbidden
+from django.http import HttpResponseForbidden, JsonResponse
 from django.shortcuts import redirect, render
 from django.views.decorators.http import require_http_methods
 
 from .forms import ChatForm, HealthProfileForm, LoginForm, MealEntryForm, RecommendationForm
 from .models import ChatMessage, HealthGoal, Recommendation, User
-from .services import build_chat_response, customer_analytics, relevant_recommendations
+from .services import build_chat_response, customer_analytics, customer_summary_payload, relevant_recommendations
 
 
 def home(request):
@@ -87,6 +87,11 @@ def customer_dashboard(request):
 			"active_page": "customer",
 		},
 	)
+
+
+@customer_required
+def customer_summary_api(request):
+	return JsonResponse(customer_summary_payload(request.user))
 
 
 @employee_required
