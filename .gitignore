@@ -1,2 +1,8 @@
+__pycache__/
+*.py[cod]
+*.sqlite3
+
+.venv/
+venv/
+
 node_modules/
-data/store.runtime.json
