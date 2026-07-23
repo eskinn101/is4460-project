@@ -579,8 +579,8 @@ def recommendation_files_view(request):
 		try:
 			action = request.POST.get("action")
 		except RequestDataTooBig:
-			import_form = RecommendationMultiImportForm()
-			import_form.add_error("files", "Upload too large. Limit is 25 MB.")
+			messages.error(request, "Upload too large for the current request limit. Try a smaller file or upload one file at a time.")
+			return redirect("recommendation_files")
 
 		if action == "upload_files":
 			if not _is_hr_or_superuser(request.user):
