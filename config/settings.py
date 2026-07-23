@@ -126,3 +126,7 @@ AUTH_USER_MODEL = "core.User"
 LOGIN_URL = "/"
 LOGIN_REDIRECT_URL = "/customer/"
 ALLOWED_HOSTS = ["localhost", "127.0.0.1", ".app.github.dev"]
+
+# Allow larger HR recommendation data imports (CSV/ZIP).
+DATA_UPLOAD_MAX_MEMORY_SIZE = 25 * 1024 * 1024
+FILE_UPLOAD_MAX_MEMORY_SIZE = 25 * 1024 * 1024

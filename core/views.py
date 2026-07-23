@@ -1,10 +1,12 @@
 import csv
 import io
+import zipfile
 from functools import wraps
 
 from django.contrib import messages
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required
+from django.core.exceptions import RequestDataTooBig
 from django.http import Http404, HttpResponseForbidden, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.db import transaction
@@ -367,9 +369,40 @@ def _normalize_recommendation_category(raw_category):
 	return lookup.get(str(raw_category).strip().lower())
 
 
-def _import_recommendations_csv(uploaded_file, created_by, replace_existing=False):
+def _open_csv_stream(uploaded_file):
+	file_name = uploaded_file.name.lower()
 	uploaded_file.seek(0)
-	decoded_stream = io.StringIO(uploaded_file.read().decode("utf-8-sig"))
+
+	if file_name.endswith(".csv"):
+		return io.StringIO(uploaded_file.read().decode("utf-8-sig"))
+
+	if file_name.endswith(".zip"):
+		try:
+			archive = zipfile.ZipFile(uploaded_file)
+		except zipfile.BadZipFile as exc:
+			raise ValueError("The ZIP file is invalid or corrupted.") from exc
+
+		csv_members = [member for member in archive.infolist() if not member.is_dir() and member.filename.lower().endswith(".csv")]
+		if not csv_members:
+			raise ValueError("ZIP file must contain at least one CSV file.")
+
+		selected_member = csv_members[0]
+		if len(csv_members) > 1:
+			named_member = next((member for member in csv_members if member.filename.lower().endswith("recommendations.csv")), None)
+			if named_member:
+				selected_member = named_member
+
+		try:
+			with archive.open(selected_member, "r") as csv_file:
+				return io.StringIO(csv_file.read().decode("utf-8-sig"))
+		except UnicodeDecodeError as exc:
+			raise ValueError("CSV file inside ZIP must be UTF-8 encoded.") from exc
+
+	raise ValueError("Unsupported file type. Upload CSV or ZIP.")
+
+
+def _import_recommendations_csv(uploaded_file, created_by, replace_existing=False):
+	decoded_stream = _open_csv_stream(uploaded_file)
 	reader = csv.DictReader(decoded_stream)
 
 	required_columns = {"title", "category", "guidance"}
@@ -486,7 +519,12 @@ def employee_dashboard(request):
 	import_form = RecommendationImportForm()
 
 	if request.method == "POST":
-		action = request.POST.get("action", "create_recommendation")
+		try:
+			action = request.POST.get("action", "create_recommendation")
+		except RequestDataTooBig:
+			import_form = RecommendationImportForm()
+			import_form.add_error("file", "Upload too large. Limit is 25 MB.")
+			action = None
 
 		if action == "create_recommendation":
 			form = RecommendationForm(request.POST)
@@ -512,10 +550,10 @@ def employee_dashboard(request):
 						created_by=request.user,
 						replace_existing=replace_existing,
 					)
-				except UnicodeDecodeError:
-					import_form.add_error("file", "File must be UTF-8 encoded.")
 				except ValueError as exc:
 					import_form.add_error("file", str(exc))
+				except UnicodeDecodeError:
+					import_form.add_error("file", "File must be UTF-8 encoded.")
 				else:
 					messages.success(request, f"Imported {imported_count} recommendations from CSV.")
 					return redirect("employee_dashboard")

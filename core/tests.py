@@ -3,6 +3,8 @@ from django.core.management import call_command
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase
 from django.urls import reverse
+import io
+import zipfile
 
 from .models import HealthGoal, HealthProfile, Recommendation, Workout
 
@@ -602,3 +604,26 @@ class RecommendationImportTests(TestCase):
 		self.assertContains(response, "Imported 1 recommendations from CSV.")
 		self.assertEqual(Recommendation.objects.count(), 1)
 		self.assertTrue(Recommendation.objects.filter(title="New Wellness Plan").exists())
+
+	def test_hr_can_import_recommendation_zip(self):
+		self.client.force_login(self.hr)
+		initial_count = Recommendation.objects.count()
+		buffer = io.BytesIO()
+		with zipfile.ZipFile(buffer, "w", compression=zipfile.ZIP_DEFLATED) as archive:
+			archive.writestr(
+				"recommendations.csv",
+				"title,category,guidance,analytics_focus\nZip Wellness,Wellness,Stay hydrated through the day,hydration\n",
+			)
+		buffer.seek(0)
+		zip_file = SimpleUploadedFile("recommendations.zip", buffer.read(), content_type="application/zip")
+
+		response = self.client.post(
+			reverse("employee_dashboard"),
+			{"action": "import_recommendations", "file": zip_file},
+			follow=True,
+		)
+
+		self.assertEqual(response.status_code, 200)
+		self.assertContains(response, "Imported 1 recommendations from CSV.")
+		self.assertEqual(Recommendation.objects.count(), initial_count + 1)
+		self.assertTrue(Recommendation.objects.filter(title="Zip Wellness", created_by=self.hr).exists())

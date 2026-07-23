@@ -122,7 +122,7 @@ class RecommendationForm(forms.ModelForm):
 
 
 class RecommendationImportForm(forms.Form):
-    file = forms.FileField(help_text="Upload a CSV file with title, category, guidance, and optional analytics_focus columns.")
+    file = forms.FileField(help_text="Upload a CSV file, or a ZIP that contains one CSV file, with title, category, guidance, and optional analytics_focus columns.")
     replace_existing = forms.BooleanField(
         required=False,
         initial=False,
@@ -131,8 +131,9 @@ class RecommendationImportForm(forms.Form):
 
     def clean_file(self):
         uploaded_file = self.cleaned_data["file"]
-        if not uploaded_file.name.lower().endswith(".csv"):
-            raise forms.ValidationError("Please upload a CSV file.")
+        file_name = uploaded_file.name.lower()
+        if not (file_name.endswith(".csv") or file_name.endswith(".zip")):
+            raise forms.ValidationError("Please upload a CSV file or a ZIP file that contains a CSV.")
         return uploaded_file
 
 
