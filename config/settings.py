@@ -121,4 +121,4 @@ STATICFILES_DIRS = [BASE_DIR / "static"]
 AUTH_USER_MODEL = "core.User"
 LOGIN_URL = "/"
 LOGIN_REDIRECT_URL = "/customer/"
-ALLOWED_HOSTS = ["localhost", "127.0.0.1"]
+ALLOWED_HOSTS = ["localhost", "127.0.0.1", ".app.github.dev"]
