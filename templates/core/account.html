@@ -7,7 +7,7 @@
   <span class="eyebrow">Account access</span>
   <h1>Create your Moderation account</h1>
   <p>
-    Choose whether you are signing in as a customer or an employee. Each account type is routed to its own protected dashboard after registration.
+    Use the dedicated customer and employee registration boxes below. Each account type is routed to its own protected dashboard after registration.
   </p>
 </section>
 
@@ -49,7 +49,7 @@
         {{ customer_form.confirm_password }}
         {{ customer_form.confirm_password.errors }}
       </div>
-      <button type="submit">Register customer</button>
+      <button type="submit" name="registration_form" value="customer">Register customer</button>
     </form>
   </article>
 
@@ -95,7 +95,7 @@
         {{ employee_form.confirm_password }}
         {{ employee_form.confirm_password.errors }}
       </div>
-      <button type="submit">Register employee</button>
+      <button type="submit" name="registration_form" value="employee">Register employee</button>
     </form>
   </article>
 </section>

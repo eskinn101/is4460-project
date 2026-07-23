@@ -10,13 +10,19 @@ class LoginForm(forms.Form):
 
 
 class AccountRegistrationForm(forms.Form):
-    account_type = forms.ChoiceField(choices=User.Roles.choices)
+    account_type = forms.ChoiceField(choices=User.Roles.choices, widget=forms.HiddenInput())
     first_name = forms.CharField(max_length=120)
     last_name = forms.CharField(max_length=120)
     email = forms.EmailField()
     date_of_birth = forms.DateField(required=False, widget=forms.DateInput(attrs={"type": "date"}))
     password = forms.CharField(widget=forms.PasswordInput())
     confirm_password = forms.CharField(widget=forms.PasswordInput())
+    fixed_account_type = None
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        if self.fixed_account_type:
+            self.fields["account_type"].initial = self.fixed_account_type
 
     def clean_email(self):
         email = self.cleaned_data["email"].strip().lower()
@@ -34,10 +40,21 @@ class AccountRegistrationForm(forms.Form):
         if account_type == User.Roles.EMPLOYEE and not date_of_birth:
             self.add_error("date_of_birth", "Birthday is required for employee accounts.")
 
+        if self.fixed_account_type and account_type and account_type != self.fixed_account_type:
+            self.add_error("account_type", "Invalid account type for this form.")
+
         if password and confirm_password and password != confirm_password:
             self.add_error("confirm_password", "Passwords do not match.")
 
         return cleaned_data
+
+
+class CustomerRegistrationForm(AccountRegistrationForm):
+    fixed_account_type = User.Roles.CUSTOMER
+
+
+class EmployeeRegistrationForm(AccountRegistrationForm):
+    fixed_account_type = User.Roles.EMPLOYEE
 
 
 class ProfileForm(forms.ModelForm):

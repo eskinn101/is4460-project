@@ -7,7 +7,7 @@ from django.http import Http404, HttpResponseForbidden, JsonResponse
 from django.shortcuts import redirect, render
 from django.views.decorators.http import require_http_methods
 
-from .forms import AccountRegistrationForm, ChatForm, HealthProfileForm, LoginForm, MealEntryForm, ProfileForm, RecommendationForm
+from .forms import ChatForm, CustomerRegistrationForm, EmployeeRegistrationForm, HealthProfileForm, LoginForm, MealEntryForm, ProfileForm, RecommendationForm
 from .models import ChatMessage, HealthGoal, HealthProfile, Recommendation, User
 from .services import build_chat_response, customer_analytics, customer_summary_payload, relevant_recommendations
 
@@ -198,17 +198,16 @@ def account_view(request):
 			},
 		)
 
-	customer_form = AccountRegistrationForm(prefix="customer", initial={"account_type": User.Roles.CUSTOMER})
-	employee_form = AccountRegistrationForm(prefix="employee", initial={"account_type": User.Roles.EMPLOYEE})
+	customer_form = CustomerRegistrationForm(prefix="customer")
+	employee_form = EmployeeRegistrationForm(prefix="employee")
 
 	if request.method == "POST":
-		if "employee-account_type" in request.POST or request.POST.get("account_type") == User.Roles.EMPLOYEE:
-			prefix = "employee" if "employee-account_type" in request.POST else None
-			form = AccountRegistrationForm(request.POST, prefix=prefix)
+		registration_form = request.POST.get("registration_form")
+		if registration_form == User.Roles.EMPLOYEE or (registration_form is None and "employee-account_type" in request.POST):
+			form = EmployeeRegistrationForm(request.POST, prefix="employee")
 			employee_form = form
 		else:
-			prefix = "customer" if "customer-account_type" in request.POST else None
-			form = AccountRegistrationForm(request.POST, prefix=prefix)
+			form = CustomerRegistrationForm(request.POST, prefix="customer")
 			customer_form = form
 
 		if form.is_valid():
