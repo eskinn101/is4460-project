@@ -1,4 +1,5 @@
 {% extends 'core/base.html' %}
+{% load static %}
 
 {% block title %}Moderation | Home{% endblock %}
 
@@ -61,6 +62,38 @@
       <span>Mindset</span>
       <h3>Calm &amp; Centered</h3>
       <p>Support for sleep, stress reduction, and mindful habits that reinforce progress.</p>
+    </article>
+  </div>
+</section>
+
+<section class="panel photo-showcase">
+  <div class="split-header">
+    <div>
+      <div class="kicker">Recommended meals</div>
+      <h2>Simple meals customers can make</h2>
+    </div>
+  </div>
+  <div class="photo-grid">
+    <article class="photo-card">
+      <img src="{% static 'images/protein-bowl.jpg' %}" alt="A fresh protein bowl with vegetables and grains">
+      <div class="photo-card-copy">
+        <h3>Protein Power Bowl</h3>
+        <p>Chicken, grains, greens, and a bright sauce for an easy lunch.</p>
+      </div>
+    </article>
+    <article class="photo-card">
+      <img src="{% static 'images/berry-smoothie.jpg' %}" alt="A colorful smoothie with fruit and yogurt">
+      <div class="photo-card-copy">
+        <h3>Berry Smoothie</h3>
+        <p>A quick recovery drink packed with protein and fruit.</p>
+      </div>
+    </article>
+    <article class="photo-card">
+      <img src="{% static 'images/balanced-breakfast.jpg' %}" alt="A plated healthy breakfast with eggs and avocado toast">
+      <div class="photo-card-copy">
+        <h3>Balanced Breakfast</h3>
+        <p>Eggs, toast, avocado, and fruit for an energizing morning start.</p>
+      </div>
     </article>
   </div>
 </section>

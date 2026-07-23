@@ -5,7 +5,10 @@ import os
 import re
 from typing import Any
 
-from openai import OpenAI
+try:
+	from openai import OpenAI
+except ModuleNotFoundError:  # pragma: no cover - optional dependency
+	OpenAI = None
 
 
 def _api_key() -> str | None:
@@ -25,7 +28,10 @@ def _model() -> str:
 	return os.getenv("MODERATION_AI_MODEL", "gpt-4o-mini")
 
 
-def _client() -> OpenAI | None:
+def _client() -> Any | None:
+	if OpenAI is None:
+		return None
+
 	api_key = _api_key()
 	if not api_key:
 		return None
