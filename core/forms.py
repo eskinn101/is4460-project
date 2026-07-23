@@ -14,6 +14,7 @@ class AccountRegistrationForm(forms.Form):
     first_name = forms.CharField(max_length=120)
     last_name = forms.CharField(max_length=120)
     email = forms.EmailField()
+    date_of_birth = forms.DateField(required=False, widget=forms.DateInput(attrs={"type": "date"}))
     password = forms.CharField(widget=forms.PasswordInput())
     confirm_password = forms.CharField(widget=forms.PasswordInput())
 
@@ -25,8 +26,13 @@ class AccountRegistrationForm(forms.Form):
 
     def clean(self):
         cleaned_data = super().clean()
+        account_type = cleaned_data.get("account_type")
+        date_of_birth = cleaned_data.get("date_of_birth")
         password = cleaned_data.get("password")
         confirm_password = cleaned_data.get("confirm_password")
+
+        if account_type == User.Roles.EMPLOYEE and not date_of_birth:
+            self.add_error("date_of_birth", "Birthday is required for employee accounts.")
 
         if password and confirm_password and password != confirm_password:
             self.add_error("confirm_password", "Passwords do not match.")

@@ -198,42 +198,56 @@ def account_view(request):
 			},
 		)
 
-	form = AccountRegistrationForm(request.POST or None)
-	if request.method == "POST" and form.is_valid():
-		role = form.cleaned_data["account_type"]
-		email = form.cleaned_data["email"]
-		password = form.cleaned_data["password"]
-		user = User.objects.create_user(
-			username=email,
-			email=email,
-			first_name=form.cleaned_data["first_name"],
-			last_name=form.cleaned_data["last_name"],
-			password=password,
-			role=role,
-		)
+	customer_form = AccountRegistrationForm(prefix="customer", initial={"account_type": User.Roles.CUSTOMER})
+	employee_form = AccountRegistrationForm(prefix="employee", initial={"account_type": User.Roles.EMPLOYEE})
 
-		if role == User.Roles.CUSTOMER:
-			HealthProfile.objects.get_or_create(
-				user=user,
-				defaults={
-					"daily_recommendation": "Log meals, water, and a short walk to build a steady routine.",
-					"wellness_focus": "Consistency over intensity",
-					"steps": 0,
-					"water_oz": 0,
-					"sleep_hours": 0,
-					"workouts_per_week": 0,
-				},
+	if request.method == "POST":
+		if "employee-account_type" in request.POST or request.POST.get("account_type") == User.Roles.EMPLOYEE:
+			prefix = "employee" if "employee-account_type" in request.POST else None
+			form = AccountRegistrationForm(request.POST, prefix=prefix)
+			employee_form = form
+		else:
+			prefix = "customer" if "customer-account_type" in request.POST else None
+			form = AccountRegistrationForm(request.POST, prefix=prefix)
+			customer_form = form
+
+		if form.is_valid():
+			role = form.cleaned_data["account_type"]
+			email = form.cleaned_data["email"]
+			password = form.cleaned_data["password"]
+			user = User.objects.create_user(
+				username=email,
+				email=email,
+				first_name=form.cleaned_data["first_name"],
+				last_name=form.cleaned_data["last_name"],
+				date_of_birth=form.cleaned_data.get("date_of_birth"),
+				password=password,
+				role=role,
 			)
 
-		login(request, user)
-		messages.success(request, f"{role.title()} account created.")
-		return redirect("employee_dashboard" if role == User.Roles.EMPLOYEE else "customer_dashboard")
+			if role == User.Roles.CUSTOMER:
+				HealthProfile.objects.get_or_create(
+					user=user,
+					defaults={
+						"daily_recommendation": "Log meals, water, and a short walk to build a steady routine.",
+						"wellness_focus": "Consistency over intensity",
+						"steps": 0,
+						"water_oz": 0,
+						"sleep_hours": 0,
+						"workouts_per_week": 0,
+					},
+				)
+
+			login(request, user)
+			messages.success(request, f"{role.title()} account created.")
+			return redirect("employee_dashboard" if role == User.Roles.EMPLOYEE else "customer_dashboard")
 
 	return render(
 		request,
 		"core/account.html",
 		{
-			"form": form,
+			"customer_form": customer_form,
+			"employee_form": employee_form,
 			"active_page": "account",
 		},
 	)

@@ -52,12 +52,12 @@ class AccountPageRegistrationTests(TestCase):
 		response = self.client.post(
 			reverse("account"),
 			{
-				"account_type": self.User.Roles.CUSTOMER,
-				"first_name": "Jordan",
-				"last_name": "Lee",
-				"email": "newcustomer@example.com",
-				"password": "strong-pass-123",
-				"confirm_password": "strong-pass-123",
+				"customer-account_type": self.User.Roles.CUSTOMER,
+				"customer-first_name": "Jordan",
+				"customer-last_name": "Lee",
+				"customer-email": "newcustomer@example.com",
+				"customer-password": "strong-pass-123",
+				"customer-confirm_password": "strong-pass-123",
 			},
 		)
 
@@ -69,18 +69,38 @@ class AccountPageRegistrationTests(TestCase):
 		response = self.client.post(
 			reverse("account"),
 			{
-				"account_type": self.User.Roles.EMPLOYEE,
-				"first_name": "Coach",
-				"last_name": "Mira",
-				"email": "newemployee@example.com",
-				"password": "strong-pass-123",
-				"confirm_password": "strong-pass-123",
+				"employee-account_type": self.User.Roles.EMPLOYEE,
+				"employee-first_name": "Coach",
+				"employee-last_name": "Mira",
+				"employee-email": "newemployee@example.com",
+				"employee-date_of_birth": "1992-08-14",
+				"employee-password": "strong-pass-123",
+				"employee-confirm_password": "strong-pass-123",
 			},
 		)
 
 		self.assertEqual(response.status_code, 302)
 		self.assertRedirects(response, reverse("employee_dashboard"))
 		self.assertTrue(self.User.objects.filter(email="newemployee@example.com", role=self.User.Roles.EMPLOYEE).exists())
+		employee = self.User.objects.get(email="newemployee@example.com", role=self.User.Roles.EMPLOYEE)
+		self.assertEqual(str(employee.date_of_birth), "1992-08-14")
+
+	def test_employee_registration_requires_birthday(self):
+		response = self.client.post(
+			reverse("account"),
+			{
+				"employee-account_type": self.User.Roles.EMPLOYEE,
+				"employee-first_name": "Coach",
+				"employee-last_name": "Mira",
+				"employee-email": "employeewithoutdob@example.com",
+				"employee-password": "strong-pass-123",
+				"employee-confirm_password": "strong-pass-123",
+			},
+		)
+
+		self.assertEqual(response.status_code, 200)
+		self.assertContains(response, "Birthday is required for employee accounts.")
+		self.assertFalse(self.User.objects.filter(email="employeewithoutdob@example.com").exists())
 
 
 class WellnessPartnersPageTests(TestCase):

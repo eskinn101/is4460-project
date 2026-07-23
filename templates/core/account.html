@@ -20,26 +20,34 @@
     </div>
     <form method="post">
       {% csrf_token %}
-      <input type="hidden" name="account_type" value="customer" />
+      {{ customer_form.account_type }}
+      {% if customer_form.non_field_errors %}
+        <div class="notice">{{ customer_form.non_field_errors }}</div>
+      {% endif %}
       <div>
-        <label for="id_first_name">First name</label>
-        {{ form.first_name }}
+        <label for="{{ customer_form.first_name.id_for_label }}">First name</label>
+        {{ customer_form.first_name }}
+        {{ customer_form.first_name.errors }}
       </div>
       <div>
-        <label for="id_last_name">Last name</label>
-        {{ form.last_name }}
+        <label for="{{ customer_form.last_name.id_for_label }}">Last name</label>
+        {{ customer_form.last_name }}
+        {{ customer_form.last_name.errors }}
       </div>
       <div>
-        <label for="id_email">Email</label>
-        {{ form.email }}
+        <label for="{{ customer_form.email.id_for_label }}">Email</label>
+        {{ customer_form.email }}
+        {{ customer_form.email.errors }}
       </div>
       <div>
-        <label for="id_password">Password</label>
-        {{ form.password }}
+        <label for="{{ customer_form.password.id_for_label }}">Password</label>
+        {{ customer_form.password }}
+        {{ customer_form.password.errors }}
       </div>
       <div>
-        <label for="id_confirm_password">Confirm password</label>
-        {{ form.confirm_password }}
+        <label for="{{ customer_form.confirm_password.id_for_label }}">Confirm password</label>
+        {{ customer_form.confirm_password }}
+        {{ customer_form.confirm_password.errors }}
       </div>
       <button type="submit">Register customer</button>
     </form>
@@ -53,26 +61,39 @@
     </div>
     <form method="post">
       {% csrf_token %}
-      <input type="hidden" name="account_type" value="employee" />
+      {{ employee_form.account_type }}
+      {% if employee_form.non_field_errors %}
+        <div class="notice">{{ employee_form.non_field_errors }}</div>
+      {% endif %}
       <div>
-        <label for="id_first_name">First name</label>
-        {{ form.first_name }}
+        <label for="{{ employee_form.first_name.id_for_label }}">First name</label>
+        {{ employee_form.first_name }}
+        {{ employee_form.first_name.errors }}
       </div>
       <div>
-        <label for="id_last_name">Last name</label>
-        {{ form.last_name }}
+        <label for="{{ employee_form.last_name.id_for_label }}">Last name</label>
+        {{ employee_form.last_name }}
+        {{ employee_form.last_name.errors }}
       </div>
       <div>
-        <label for="id_email">Email</label>
-        {{ form.email }}
+        <label for="{{ employee_form.email.id_for_label }}">Email</label>
+        {{ employee_form.email }}
+        {{ employee_form.email.errors }}
       </div>
       <div>
-        <label for="id_password">Password</label>
-        {{ form.password }}
+        <label for="{{ employee_form.date_of_birth.id_for_label }}">Birthday</label>
+        {{ employee_form.date_of_birth }}
+        {{ employee_form.date_of_birth.errors }}
       </div>
       <div>
-        <label for="id_confirm_password">Confirm password</label>
-        {{ form.confirm_password }}
+        <label for="{{ employee_form.password.id_for_label }}">Password</label>
+        {{ employee_form.password }}
+        {{ employee_form.password.errors }}
+      </div>
+      <div>
+        <label for="{{ employee_form.confirm_password.id_for_label }}">Confirm password</label>
+        {{ employee_form.confirm_password }}
+        {{ employee_form.confirm_password.errors }}
       </div>
       <button type="submit">Register employee</button>
     </form>
