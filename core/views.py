@@ -9,7 +9,7 @@ from django.views.decorators.http import require_http_methods
 
 from .forms import ChatForm, CustomerLoginForm, CustomerRegistrationForm, EmployeeLoginForm, EmployeeRegistrationForm, HealthProfileForm, MealEntryForm, ProfileForm, RecommendationForm
 from .models import ChatMessage, HealthGoal, HealthProfile, Recommendation, User
-from .services import build_chat_response, customer_analytics, customer_summary_payload, relevant_recommendations
+from .services import build_ai_guidance, build_chat_response, customer_analytics, customer_summary_payload, relevant_recommendations
 
 
 PARTNER_DATA = [
@@ -288,7 +288,12 @@ def customer_required(view_func):
 @customer_required
 def wellness_partners_view(request):
 	selected_category = request.GET.get("category", "all")
-	partners = [partner for partner in PARTNER_DATA if selected_category == "all" or selected_category in partner["tags"] or (selected_category == "nearby" and partner["is_nearby"]) or (selected_category == "discounts" and partner["promotion"])]
+	partners = [dict(partner) for partner in PARTNER_DATA if selected_category == "all" or selected_category in partner["tags"] or (selected_category == "nearby" and partner["is_nearby"]) or (selected_category == "discounts" and partner["promotion"])]
+	analytics = customer_analytics(request.user)
+	ai_guidance = build_ai_guidance(request.user, analytics=analytics, recommendations=relevant_recommendations(request.user), partners=partners, purpose="partners")
+	partner_match_lookup = {item.get("slug"): item.get("reason") for item in ai_guidance.get("partner_matches", []) if isinstance(item, dict)}
+	for partner in partners:
+		partner["ai_reason"] = partner_match_lookup.get(partner["slug"], partner["recommendation_reason"])
 	return render(
 		request,
 		"core/wellness_partners.html",
@@ -297,6 +302,7 @@ def wellness_partners_view(request):
 			"rewards": REWARDS_DATA,
 			"offers": OFFERS_DATA,
 			"nearby_partners": NEARBY_DATA,
+			"ai_guidance": ai_guidance,
 			"selected_category": selected_category,
 			"active_page": "wellness_partners",
 		},
@@ -305,14 +311,18 @@ def wellness_partners_view(request):
 
 @customer_required
 def wellness_partner_detail_view(request, slug):
-	partner = next((entry for entry in PARTNER_DATA if entry["slug"] == slug), None)
+	partner_source = next((entry for entry in PARTNER_DATA if entry["slug"] == slug), None)
+	partner = dict(partner_source) if partner_source is not None else None
 	if partner is None:
 		raise Http404("Partner not found")
+	ai_guidance = build_ai_guidance(request.user, analytics=customer_analytics(request.user), recommendations=relevant_recommendations(request.user), partners=[partner], purpose="partner_detail")
+	partner["ai_reason"] = ai_guidance.get("partner_matches", [{}])[0].get("reason", partner["recommendation_reason"]) if ai_guidance.get("partner_matches") else partner["recommendation_reason"]
 	return render(
 		request,
 		"core/wellness_partner_detail.html",
 		{
 			"partner": partner,
+			"ai_guidance": ai_guidance,
 			"active_page": "wellness_partners",
 		},
 	)
@@ -322,12 +332,14 @@ def wellness_partner_detail_view(request, slug):
 def customer_dashboard(request):
 	analytics = customer_analytics(request.user)
 	recommendations = relevant_recommendations(request.user)
+	ai_guidance = build_ai_guidance(request.user, analytics=analytics, recommendations=recommendations, purpose="dashboard")
 	return render(
 		request,
 		"core/customer_dashboard.html",
 		{
 			"analytics": analytics,
 			"recommendations": recommendations,
+			"ai_guidance": ai_guidance,
 			"active_page": "customer",
 		},
 	)
@@ -421,6 +433,7 @@ def health_view(request):
 		form = HealthProfileForm(instance=profile)
 
 	analytics = customer_analytics(request.user)
+	ai_guidance = build_ai_guidance(request.user, analytics=analytics, recommendations=relevant_recommendations(request.user), purpose="health")
 	return render(
 		request,
 		"core/health.html",
@@ -429,6 +442,7 @@ def health_view(request):
 			"goals_text": "\n".join(request.user.health_goals.values_list("title", flat=True)),
 			"analytics": analytics,
 			"recommendations": relevant_recommendations(request.user),
+			"ai_guidance": ai_guidance,
 			"active_page": "health",
 		},
 	)
@@ -446,6 +460,7 @@ def meals_view(request):
 		return redirect("meals")
 
 	analytics = customer_analytics(request.user)
+	ai_guidance = build_ai_guidance(request.user, analytics=analytics, recommendations=relevant_recommendations(request.user), meals=list(request.user.meal_entries.all()[:5]), purpose="meals")
 	return render(
 		request,
 		"core/meals.html",
@@ -453,6 +468,7 @@ def meals_view(request):
 			"form": form,
 			"meals": request.user.meal_entries.all()[:12],
 			"analytics": analytics,
+			"ai_guidance": ai_guidance,
 			"active_page": "meals",
 		},
 	)

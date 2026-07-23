@@ -15,6 +15,16 @@ Django website foundation for a health coaching platform focused on customer hea
 - Customer: `jordan@moderation.app` / `customer-demo`
 - Employee: `coach@moderation.app` / `employee-demo`
 
+## Optional AI setup
+
+Set one of the following environment variables to enable API-backed guidance:
+
+- `OPENAI_API_KEY` or `MODERATION_AI_API_KEY`
+- Optional: `OPENAI_BASE_URL` or `MODERATION_AI_BASE_URL` for OpenAI-compatible providers
+- Optional: `MODERATION_AI_MODEL` to override the default model name
+
+When no key is configured, the app falls back to the existing local analytics and recommendation logic.
+
 ## Run locally
 
 ```bash

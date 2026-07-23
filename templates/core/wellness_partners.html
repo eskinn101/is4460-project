@@ -26,6 +26,12 @@
     </div>
   </div>
 
+  <div class="panel" style="margin-top: 20px;">
+    <div class="kicker">AI partner focus</div>
+    <h2>Best fits from your current data</h2>
+    <p>{{ ai_guidance.partner_tip }}</p>
+  </div>
+
   <div class="filter-row" role="group" aria-label="Filter partners">
     <a class="filter-chip {% if selected_category == 'all' %}active{% endif %}" href="{% url 'wellness_partners' %}">All Partners</a>
     <a class="filter-chip {% if selected_category == 'restaurants' %}active{% endif %}" href="{% url 'wellness_partners' %}?category=restaurants">Restaurants</a>
@@ -54,7 +60,7 @@
         </div>
         <div class="list-item" style="margin-top: 12px;">
           <small>Why recommended</small>
-          <p>{{ partner.recommendation_reason }}</p>
+          <p>{{ partner.ai_reason }}</p>
         </div>
         <div class="footer-note">Promotion: {{ partner.promotion }}</div>
         <div class="hero-actions" style="margin-top: 12px;">

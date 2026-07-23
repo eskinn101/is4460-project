@@ -32,6 +32,24 @@
 
 <section class="grid-3" style="margin-top: 24px;">
   <article class="feature-card">
+    <span>AI summary</span>
+    <h3>What the model sees</h3>
+    <p>{{ ai_guidance.summary }}</p>
+  </article>
+  <article class="feature-card">
+    <span>Meal guidance</span>
+    <h3>Next nutrition move</h3>
+    <p>{{ ai_guidance.meal_tip }}</p>
+  </article>
+  <article class="feature-card">
+    <span>Partner guidance</span>
+    <h3>Where to focus</h3>
+    <p>{{ ai_guidance.partner_tip }}</p>
+  </article>
+</section>
+
+<section class="grid-3" style="margin-top: 24px;">
+  <article class="feature-card">
     <span>Chat support</span>
     <h3>Talk to the bot and a coach</h3>
     <p>Messages now reference saved health data and stored recommendations.</p>
