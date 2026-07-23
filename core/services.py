@@ -3,7 +3,31 @@ import json
 from django.utils import timezone
 
 from .ai import generate_json_completion
-from .models import ChatMessage, Recommendation
+from .models import BotBehaviorConfig, ChatMessage, CustomerBotBehaviorOverride, Recommendation
+
+
+def bot_behavior_instructions(user=None, global_instructions=None, customer_override=None):
+    config = BotBehaviorConfig.objects.order_by("id").first()
+    resolved_global = global_instructions if global_instructions is not None else (config.instructions if config else "")
+    if not resolved_global or not resolved_global.strip():
+        resolved_global = (
+            "Keep guidance practical, supportive, and non-judgmental. "
+            "Use only the supplied customer profile and recommendation data. "
+            "Do not provide medical diagnosis or treatment advice."
+        )
+
+    override_text = customer_override
+    if override_text is None and user is not None and getattr(user, "role", None) == "customer":
+        override = CustomerBotBehaviorOverride.objects.filter(user=user).first()
+        override_text = override.instructions if override else ""
+
+    if override_text and override_text.strip():
+        return (
+            f"{resolved_global.strip()}\n"
+            f"Customer-specific behavior instructions: {override_text.strip()}"
+        )
+
+    return resolved_global.strip()
 
 
 def customer_analytics(user):
@@ -95,15 +119,27 @@ def _default_partner_matches(partners):
     ]
 
 
-def build_ai_guidance(user, analytics=None, recommendations=None, meals=None, partners=None, incoming_message=None, purpose="dashboard"):
+def build_ai_guidance(
+    user,
+    analytics=None,
+    recommendations=None,
+    meals=None,
+    partners=None,
+    incoming_message=None,
+    purpose="dashboard",
+    behavior_instruction_override=None,
+):
     analytics = analytics or customer_analytics(user)
     recommendations = recommendations or relevant_recommendations(user)
     meals = meals or list(user.meal_entries.order_by("-consumed_at")[:5])
     partners = partners or []
 
     primary_recommendation = analytics["primary_recommendation"]
+    resolved_behavior = behavior_instruction_override or bot_behavior_instructions(user=user)
+
     payload = {
         "purpose": purpose,
+        "behavior_instructions": resolved_behavior,
         "profile": {
             "consistency_score": analytics["consistency_score"],
             "total_calories": analytics["total_calories"],
@@ -153,6 +189,7 @@ def build_ai_guidance(user, analytics=None, recommendations=None, meals=None, pa
 
     system_prompt = (
         "You are a wellness assistant for a prototype health coaching app. "
+        f"Follow this behavior policy exactly: {resolved_behavior} "
         "Return concise valid JSON only. Do not include markdown or commentary."
     )
     user_prompt = (

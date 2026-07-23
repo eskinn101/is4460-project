@@ -1,7 +1,7 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as DjangoUserAdmin
 
-from .models import ChatMessage, HealthGoal, HealthProfile, MealEntry, Recommendation, RecommendationDataFile, User
+from .models import BotBehaviorConfig, BotBehaviorRevision, ChatMessage, CustomerBotBehaviorOverride, HealthGoal, HealthProfile, MealEntry, Recommendation, RecommendationDataFile, User
 
 
 @admin.register(User)
@@ -15,4 +15,7 @@ admin.site.register(HealthGoal)
 admin.site.register(MealEntry)
 admin.site.register(Recommendation)
 admin.site.register(RecommendationDataFile)
+admin.site.register(BotBehaviorConfig)
+admin.site.register(CustomerBotBehaviorOverride)
+admin.site.register(BotBehaviorRevision)
 admin.site.register(ChatMessage)

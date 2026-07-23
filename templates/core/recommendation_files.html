@@ -43,6 +43,56 @@
   </article>
 
   <article class="panel">
+    <div class="kicker">Behavior laboratory</div>
+    <h2>Global + customer behavior instructions</h2>
+    <p>
+      Configure global policy, add an optional per-customer override, and preview generated behavior before saving.
+    </p>
+    {% if can_manage_files %}
+      <form method="post">
+        {% csrf_token %}
+        <input type="hidden" name="customer_id" value="{% if selected_customer %}{{ selected_customer.id }}{% endif %}">
+        <div>
+          <label for="{{ behavior_form.instructions.id_for_label }}">Behavior instructions</label>
+          {{ behavior_form.instructions }}
+          {% if behavior_form.instructions.errors %}
+            <small>{{ behavior_form.instructions.errors|join:", " }}</small>
+          {% endif %}
+        </div>
+        <div style="margin-top: 14px;">
+          <label for="{{ customer_behavior_form.instructions.id_for_label }}">Customer override (optional)</label>
+          {{ customer_behavior_form.instructions }}
+          {% if customer_behavior_form.instructions.errors %}
+            <small>{{ customer_behavior_form.instructions.errors|join:", " }}</small>
+          {% endif %}
+        </div>
+        <div style="margin-top: 14px;">
+          <label for="preview_message">Preview user message</label>
+          <textarea id="preview_message" name="preview_message" rows="3">{{ preview_message }}</textarea>
+        </div>
+        <div style="display: flex; gap: 10px; margin-top: 12px; flex-wrap: wrap;">
+          <button type="submit" name="action" value="preview_behavior">Preview behavior</button>
+          <button type="submit" name="action" value="save_behavior_instructions">Save global policy</button>
+          <button type="submit" name="action" value="save_customer_behavior_override" {% if not selected_customer %}disabled{% endif %}>Save customer override</button>
+        </div>
+      </form>
+      <p style="margin-top: 10px;"><small>Global policy last updated: {{ behavior_config.updated_at|date:"M d, Y H:i" }}{% if behavior_config.updated_by %} by {{ behavior_config.updated_by.get_full_name|default:behavior_config.updated_by.username }}{% endif %}</small></p>
+    {% else %}
+      <p>{{ behavior_config.instructions }}</p>
+    {% endif %}
+
+    {% if preview_output %}
+      <hr style="margin: 20px 0; border: 0; border-top: 1px solid rgba(13, 26, 38, 0.12);">
+      <h3 style="margin: 0 0 8px 0;">Preview result</h3>
+      <p><strong>Summary:</strong> {{ preview_output.summary }}</p>
+      <p><strong>Health tip:</strong> {{ preview_output.health_tip }}</p>
+      <p><strong>Chat reply:</strong> {{ preview_output.chat_reply }}</p>
+    {% endif %}
+  </article>
+</section>
+
+<section class="grid-2" style="margin-top: 24px;">
+  <article class="panel">
     <div class="kicker">Customer blend preview</div>
     <h2>Personalized output context</h2>
     <form method="get">
@@ -76,6 +126,51 @@
     {% else %}
       <p>No customer records available for preview.</p>
     {% endif %}
+  </article>
+
+  <article class="panel">
+    <div class="kicker">Instruction history</div>
+    <h2>Behavior revision timeline</h2>
+    <h3 style="margin-bottom: 8px;">Global revisions</h3>
+    <div class="list-stack">
+      {% for revision in global_revisions %}
+        <article class="list-item">
+          <small>{{ revision.created_at|date:"M d, Y H:i" }}{% if revision.updated_by %} • {{ revision.updated_by.get_full_name|default:revision.updated_by.username }}{% endif %}</small>
+          <p>{{ revision.instructions|truncatechars:220 }}</p>
+          {% if can_manage_files %}
+            <form method="post">
+              {% csrf_token %}
+              <input type="hidden" name="action" value="restore_behavior_revision">
+              <input type="hidden" name="revision_id" value="{{ revision.id }}">
+              <button type="submit">Restore this global revision</button>
+            </form>
+          {% endif %}
+        </article>
+      {% empty %}
+        <p>No global revisions yet.</p>
+      {% endfor %}
+    </div>
+
+    <h3 style="margin: 16px 0 8px 0;">Customer revisions{% if selected_customer %}: {{ selected_customer.get_full_name|default:selected_customer.username }}{% endif %}</h3>
+    <div class="list-stack">
+      {% for revision in customer_revisions %}
+        <article class="list-item">
+          <small>{{ revision.created_at|date:"M d, Y H:i" }}{% if revision.updated_by %} • {{ revision.updated_by.get_full_name|default:revision.updated_by.username }}{% endif %}</small>
+          <p>{{ revision.instructions|default:"(empty override)"|truncatechars:220 }}</p>
+          {% if can_manage_files %}
+            <form method="post">
+              {% csrf_token %}
+              <input type="hidden" name="action" value="restore_behavior_revision">
+              <input type="hidden" name="customer_id" value="{% if selected_customer %}{{ selected_customer.id }}{% endif %}">
+              <input type="hidden" name="revision_id" value="{{ revision.id }}">
+              <button type="submit">Restore this customer revision</button>
+            </form>
+          {% endif %}
+        </article>
+      {% empty %}
+        <p>No customer-specific revisions yet.</p>
+      {% endfor %}
+    </div>
   </article>
 </section>
 

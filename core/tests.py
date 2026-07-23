@@ -5,8 +5,10 @@ from django.test import TestCase
 from django.urls import reverse
 import io
 import zipfile
+from unittest.mock import patch
 
-from .models import HealthGoal, HealthProfile, Recommendation, RecommendationDataFile, Workout
+from .models import BotBehaviorConfig, BotBehaviorRevision, CustomerBotBehaviorOverride, HealthGoal, HealthProfile, Recommendation, RecommendationDataFile, Workout
+from .services import build_ai_guidance
 
 
 class AppStartupTests(TestCase):
@@ -657,3 +659,203 @@ class RecommendationImportTests(TestCase):
 		self.assertEqual(response.status_code, 200)
 		self.assertContains(response, "Deleted 2 file(s).")
 		self.assertEqual(RecommendationDataFile.objects.count(), 0)
+
+	def test_hr_can_save_bot_behavior_instructions(self):
+		self.client.force_login(self.hr)
+		response = self.client.post(
+			reverse("recommendation_files"),
+			{
+				"action": "save_behavior_instructions",
+				"global-instructions": "Keep responses under 80 words and prioritize hydration and sleep cues first.",
+			},
+			follow=True,
+		)
+
+		self.assertEqual(response.status_code, 200)
+		self.assertContains(response, "Bot behavior instructions updated.")
+		config = BotBehaviorConfig.objects.order_by("id").first()
+		self.assertIsNotNone(config)
+		self.assertIn("under 80 words", config.instructions)
+		self.assertEqual(config.updated_by, self.hr)
+		self.assertTrue(BotBehaviorRevision.objects.filter(scope=BotBehaviorRevision.Scopes.GLOBAL).exists())
+
+	def test_hr_can_save_customer_behavior_override(self):
+		self.client.force_login(self.hr)
+		customer = self.User.objects.create_user(
+			username="override-customer@example.com",
+			email="override-customer@example.com",
+			password="test-pass-123",
+			role=self.User.Roles.CUSTOMER,
+		)
+		HealthProfile.objects.create(
+			user=customer,
+			daily_recommendation="Walk daily.",
+			wellness_focus="Routine",
+			steps=6000,
+			water_oz=50,
+			sleep_hours=6.5,
+			workouts_per_week=2,
+		)
+
+		response = self.client.post(
+			reverse("recommendation_files"),
+			{
+				"action": "save_customer_behavior_override",
+				"customer_id": str(customer.id),
+				"customer-instructions": "Prioritize sleep and hydration for this customer.",
+				"global-instructions": "Global behavior baseline.",
+			},
+			follow=True,
+		)
+
+		self.assertEqual(response.status_code, 200)
+		self.assertContains(response, "Customer behavior override updated.")
+		override = CustomerBotBehaviorOverride.objects.get(user=customer)
+		self.assertIn("sleep and hydration", override.instructions)
+		self.assertEqual(override.updated_by, self.hr)
+		self.assertTrue(
+			BotBehaviorRevision.objects.filter(
+				scope=BotBehaviorRevision.Scopes.CUSTOMER,
+				customer=customer,
+			).exists()
+		)
+
+	def test_saved_behavior_instructions_are_injected_into_ai_prompt(self):
+		BotBehaviorConfig.objects.create(instructions="Always start with hydration guidance first.", updated_by=self.hr)
+		customer = self.User.objects.create_user(
+			username="ai-customer@example.com",
+			email="ai-customer@example.com",
+			password="test-pass-123",
+			role=self.User.Roles.CUSTOMER,
+		)
+		HealthProfile.objects.create(
+			user=customer,
+			daily_recommendation="Walk 20 minutes.",
+			wellness_focus="Hydration",
+			steps=4000,
+			water_oz=32,
+			sleep_hours=6.0,
+			workouts_per_week=1,
+		)
+		Recommendation.objects.create(
+			title="Hydration Tip",
+			category=Recommendation.Categories.WELLNESS,
+			guidance="Drink water in the morning.",
+		)
+
+		with patch("core.services.generate_json_completion", return_value={}) as mocked_completion:
+			build_ai_guidance(customer)
+
+		self.assertTrue(mocked_completion.called)
+		called_system_prompt = mocked_completion.call_args[0][0]
+		self.assertIn("Always start with hydration guidance first.", called_system_prompt)
+
+	def test_preview_behavior_uses_unsaved_form_instructions(self):
+		self.client.force_login(self.hr)
+		customer = self.User.objects.create_user(
+			username="preview-customer@example.com",
+			email="preview-customer@example.com",
+			password="test-pass-123",
+			role=self.User.Roles.CUSTOMER,
+		)
+		HealthProfile.objects.create(
+			user=customer,
+			daily_recommendation="Walk daily.",
+			wellness_focus="Routine",
+			steps=6000,
+			water_oz=50,
+			sleep_hours=6.5,
+			workouts_per_week=2,
+		)
+		Recommendation.objects.create(
+			title="Recovery Tip",
+			category=Recommendation.Categories.WELLNESS,
+			guidance="Wind down before bed.",
+		)
+
+		with patch("core.services.generate_json_completion", return_value={}) as mocked_completion:
+			response = self.client.post(
+				reverse("recommendation_files"),
+				{
+					"action": "preview_behavior",
+					"customer_id": str(customer.id),
+					"global-instructions": "Unsaved global policy.",
+					"customer-instructions": "Unsaved customer override.",
+					"preview_message": "What should I improve?",
+				},
+			)
+
+		self.assertEqual(response.status_code, 200)
+		self.assertContains(response, "Preview result")
+		called_system_prompt = mocked_completion.call_args[0][0]
+		self.assertIn("Unsaved global policy.", called_system_prompt)
+		self.assertIn("Unsaved customer override.", called_system_prompt)
+
+	def test_hr_can_restore_global_behavior_revision(self):
+		self.client.force_login(self.hr)
+		config = BotBehaviorConfig.objects.create(
+			instructions="Current policy",
+			updated_by=self.hr,
+		)
+		revision = BotBehaviorRevision.objects.create(
+			scope=BotBehaviorRevision.Scopes.GLOBAL,
+			instructions="Restored global policy",
+			updated_by=self.hr,
+		)
+
+		response = self.client.post(
+			reverse("recommendation_files"),
+			{
+				"action": "restore_behavior_revision",
+				"revision_id": str(revision.id),
+			},
+			follow=True,
+		)
+
+		self.assertEqual(response.status_code, 200)
+		self.assertContains(response, "Global behavior policy restored from revision.")
+		config.refresh_from_db()
+		self.assertEqual(config.instructions, "Restored global policy")
+
+	def test_hr_can_restore_customer_behavior_revision(self):
+		self.client.force_login(self.hr)
+		customer = self.User.objects.create_user(
+			username="restore-customer@example.com",
+			email="restore-customer@example.com",
+			password="test-pass-123",
+			role=self.User.Roles.CUSTOMER,
+		)
+		HealthProfile.objects.create(
+			user=customer,
+			daily_recommendation="Walk daily.",
+			wellness_focus="Routine",
+			steps=6000,
+			water_oz=50,
+			sleep_hours=6.5,
+			workouts_per_week=2,
+		)
+		override = CustomerBotBehaviorOverride.objects.create(
+			user=customer,
+			instructions="Current customer override",
+			updated_by=self.hr,
+		)
+		revision = BotBehaviorRevision.objects.create(
+			scope=BotBehaviorRevision.Scopes.CUSTOMER,
+			customer=customer,
+			instructions="Restored customer override",
+			updated_by=self.hr,
+		)
+
+		response = self.client.post(
+			reverse("recommendation_files"),
+			{
+				"action": "restore_behavior_revision",
+				"revision_id": str(revision.id),
+			},
+			follow=True,
+		)
+
+		self.assertEqual(response.status_code, 200)
+		self.assertContains(response, "Customer behavior override restored from revision.")
+		override.refresh_from_db()
+		self.assertEqual(override.instructions, "Restored customer override")

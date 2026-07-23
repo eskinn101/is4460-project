@@ -13,9 +13,9 @@ from django.db import transaction
 from django.utils import timezone
 from django.views.decorators.http import require_http_methods
 
-from .forms import AccountManagementForm, ChatForm, CustomerLoginForm, CustomerRegistrationForm, EmployeeLoginForm, EmployeeRegistrationForm, HealthProfileForm, MealEntryForm, ProfileForm, RecommendationForm, RecommendationMultiImportForm, WorkoutForm
-from .models import ChatMessage, HealthGoal, HealthProfile, Recommendation, RecommendationDataFile, User, Workout
-from .services import build_ai_guidance, build_chat_response, customer_analytics, customer_summary_payload, relevant_recommendations
+from .forms import AccountManagementForm, BotBehaviorConfigForm, ChatForm, CustomerBotBehaviorOverrideForm, CustomerLoginForm, CustomerRegistrationForm, EmployeeLoginForm, EmployeeRegistrationForm, HealthProfileForm, MealEntryForm, ProfileForm, RecommendationForm, RecommendationMultiImportForm, WorkoutForm
+from .models import BotBehaviorConfig, BotBehaviorRevision, ChatMessage, CustomerBotBehaviorOverride, HealthGoal, HealthProfile, Recommendation, RecommendationDataFile, User, Workout
+from .services import bot_behavior_instructions, build_ai_guidance, build_chat_response, customer_analytics, customer_summary_payload, relevant_recommendations
 
 
 PARTNER_DATA = [
@@ -549,12 +549,24 @@ def employee_dashboard(request):
 @require_http_methods(["GET", "POST"])
 def recommendation_files_view(request):
 	import_form = RecommendationMultiImportForm()
+	behavior_config = BotBehaviorConfig.objects.order_by("id").first() or BotBehaviorConfig.objects.create()
+	behavior_form = BotBehaviorConfigForm(instance=behavior_config, prefix="global")
 	selected_customer_id = request.GET.get("customer")
 	customers = User.objects.filter(role=User.Roles.CUSTOMER).order_by("first_name", "username")
 	selected_customer = customers.filter(pk=selected_customer_id).first() if selected_customer_id else customers.first()
+	selected_override = CustomerBotBehaviorOverride.objects.filter(user=selected_customer).first() if selected_customer else None
+	customer_behavior_form = CustomerBotBehaviorOverrideForm(instance=selected_override, prefix="customer")
+	preview_message = "What should I focus on this week for better health consistency?"
+	preview_output = None
 
 	if request.method == "POST":
 		action = None
+		post_customer_id = request.POST.get("customer_id")
+		if post_customer_id:
+			candidate_customer = customers.filter(pk=post_customer_id).first()
+			if candidate_customer:
+				selected_customer = candidate_customer
+				selected_override = CustomerBotBehaviorOverride.objects.filter(user=selected_customer).first()
 		try:
 			action = request.POST.get("action")
 		except RequestDataTooBig:
@@ -632,14 +644,136 @@ def recommendation_files_view(request):
 			messages.success(request, f"Deleted {deleted_count} file(s).")
 			return redirect("recommendation_files")
 
+		elif action == "save_behavior_instructions":
+			if not _is_hr_or_superuser(request.user):
+				messages.error(request, "Only HR or superusers can update bot behavior instructions.")
+				return redirect("recommendation_files")
+
+			behavior_form = BotBehaviorConfigForm(request.POST, instance=behavior_config, prefix="global")
+			customer_behavior_form = CustomerBotBehaviorOverrideForm(instance=selected_override, prefix="customer")
+			if behavior_form.is_valid():
+				updated_behavior = behavior_form.save(commit=False)
+				updated_behavior.updated_by = request.user
+				updated_behavior.save()
+				BotBehaviorRevision.objects.create(
+					scope=BotBehaviorRevision.Scopes.GLOBAL,
+					instructions=updated_behavior.instructions,
+					updated_by=request.user,
+				)
+				messages.success(request, "Bot behavior instructions updated.")
+				return redirect("recommendation_files")
+
+		elif action == "save_customer_behavior_override":
+			if not _is_hr_or_superuser(request.user):
+				messages.error(request, "Only HR or superusers can update customer behavior overrides.")
+				return redirect("recommendation_files")
+			if selected_customer is None:
+				messages.error(request, "Select a customer before saving an override.")
+				return redirect("recommendation_files")
+
+			behavior_form = BotBehaviorConfigForm(instance=behavior_config, prefix="global")
+			customer_behavior_form = CustomerBotBehaviorOverrideForm(request.POST, instance=selected_override, prefix="customer")
+			if customer_behavior_form.is_valid():
+				updated_override = customer_behavior_form.save(commit=False)
+				updated_override.user = selected_customer
+				updated_override.updated_by = request.user
+				updated_override.save()
+				BotBehaviorRevision.objects.create(
+					scope=BotBehaviorRevision.Scopes.CUSTOMER,
+					customer=selected_customer,
+					instructions=updated_override.instructions,
+					updated_by=request.user,
+				)
+				messages.success(request, "Customer behavior override updated.")
+				return redirect(f"{request.path}?customer={selected_customer.pk}")
+
+		elif action == "preview_behavior":
+			if selected_customer is None:
+				messages.error(request, "Select a customer before previewing behavior.")
+			else:
+				behavior_form = BotBehaviorConfigForm(request.POST, instance=behavior_config, prefix="global")
+				customer_behavior_form = CustomerBotBehaviorOverrideForm(request.POST, instance=selected_override, prefix="customer")
+				preview_message = request.POST.get("preview_message", preview_message).strip() or preview_message
+				if behavior_form.is_valid() and customer_behavior_form.is_valid():
+					preview_policy = bot_behavior_instructions(
+						user=selected_customer,
+						global_instructions=behavior_form.cleaned_data["instructions"],
+						customer_override=customer_behavior_form.cleaned_data["instructions"],
+					)
+					preview_output = build_ai_guidance(
+						selected_customer,
+						analytics=customer_analytics(selected_customer),
+						recommendations=relevant_recommendations(selected_customer),
+						incoming_message=preview_message,
+						purpose="behavior_preview",
+						behavior_instruction_override=preview_policy,
+					)
+				else:
+					messages.error(request, "Fix behavior form errors before previewing.")
+
+		elif action == "restore_behavior_revision":
+			if not _is_hr_or_superuser(request.user):
+				messages.error(request, "Only HR or superusers can restore behavior revisions.")
+				return redirect("recommendation_files")
+
+			revision_id = request.POST.get("revision_id")
+			revision = get_object_or_404(BotBehaviorRevision, pk=revision_id)
+
+			if revision.scope == BotBehaviorRevision.Scopes.GLOBAL:
+				behavior_config.instructions = revision.instructions
+				behavior_config.updated_by = request.user
+				behavior_config.save()
+				BotBehaviorRevision.objects.create(
+					scope=BotBehaviorRevision.Scopes.GLOBAL,
+					instructions=behavior_config.instructions,
+					updated_by=request.user,
+				)
+				messages.success(request, "Global behavior policy restored from revision.")
+				return redirect("recommendation_files")
+
+			restored_customer = revision.customer
+			if restored_customer is None:
+				messages.error(request, "Selected customer revision is missing its target customer.")
+				return redirect("recommendation_files")
+
+			restored_override, _ = CustomerBotBehaviorOverride.objects.get_or_create(user=restored_customer)
+			restored_override.instructions = revision.instructions
+			restored_override.updated_by = request.user
+			restored_override.save()
+			BotBehaviorRevision.objects.create(
+				scope=BotBehaviorRevision.Scopes.CUSTOMER,
+				customer=restored_customer,
+				instructions=restored_override.instructions,
+				updated_by=request.user,
+			)
+			messages.success(request, "Customer behavior override restored from revision.")
+			return redirect(f"{request.path}?customer={restored_customer.pk}")
+
+		if action not in {"preview_behavior", "save_behavior_instructions", "save_customer_behavior_override"}:
+			behavior_form = BotBehaviorConfigForm(instance=behavior_config, prefix="global")
+			customer_behavior_form = CustomerBotBehaviorOverrideForm(instance=selected_override, prefix="customer")
+
 	selected_analytics = customer_analytics(selected_customer) if selected_customer else None
 	selected_recommendations = relevant_recommendations(selected_customer, limit=5) if selected_customer else []
+	global_revisions = BotBehaviorRevision.objects.filter(scope=BotBehaviorRevision.Scopes.GLOBAL).select_related("updated_by")[:8]
+	customer_revisions = (
+		BotBehaviorRevision.objects.filter(scope=BotBehaviorRevision.Scopes.CUSTOMER, customer=selected_customer).select_related("updated_by")[:8]
+		if selected_customer
+		else []
+	)
 
 	return render(
 		request,
 		"core/recommendation_files.html",
 		{
 			"import_form": import_form,
+			"behavior_form": behavior_form,
+			"customer_behavior_form": customer_behavior_form,
+			"behavior_config": behavior_config,
+			"global_revisions": global_revisions,
+			"customer_revisions": customer_revisions,
+			"preview_message": preview_message,
+			"preview_output": preview_output,
 			"uploaded_files": RecommendationDataFile.objects.select_related("uploaded_by").all(),
 			"customers": customers,
 			"selected_customer": selected_customer,

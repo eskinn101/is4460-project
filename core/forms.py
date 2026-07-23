@@ -1,7 +1,7 @@
 from django import forms
 from django.utils import timezone
 
-from .models import ChatMessage, HealthProfile, MealEntry, Recommendation, User, Workout
+from .models import BotBehaviorConfig, ChatMessage, CustomerBotBehaviorOverride, HealthProfile, MealEntry, Recommendation, User, Workout
 
 
 class LoginForm(forms.Form):
@@ -171,6 +171,34 @@ class RecommendationMultiImportForm(forms.Form):
                 raise forms.ValidationError("All files must be CSV or ZIP.")
 
         return uploaded_files
+
+
+class BotBehaviorConfigForm(forms.ModelForm):
+    class Meta:
+        model = BotBehaviorConfig
+        fields = ["instructions"]
+        widgets = {
+            "instructions": forms.Textarea(
+                attrs={
+                    "rows": 8,
+                    "placeholder": "Example: prioritize hydration and sleep guidance first, keep responses under 120 words, and avoid medical advice.",
+                }
+            ),
+        }
+
+
+class CustomerBotBehaviorOverrideForm(forms.ModelForm):
+    class Meta:
+        model = CustomerBotBehaviorOverride
+        fields = ["instructions"]
+        widgets = {
+            "instructions": forms.Textarea(
+                attrs={
+                    "rows": 6,
+                    "placeholder": "Optional override for this customer: for example, emphasize sleep consistency before exercise tips.",
+                }
+            ),
+        }
 
 
 class ChatForm(forms.Form):
