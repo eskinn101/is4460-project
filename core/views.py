@@ -7,7 +7,7 @@ from django.http import HttpResponseForbidden, JsonResponse
 from django.shortcuts import redirect, render
 from django.views.decorators.http import require_http_methods
 
-from .forms import AccountRegistrationForm, ChatForm, HealthProfileForm, LoginForm, MealEntryForm, RecommendationForm
+from .forms import AccountRegistrationForm, ChatForm, HealthProfileForm, LoginForm, MealEntryForm, ProfileForm, RecommendationForm
 from .models import ChatMessage, HealthGoal, HealthProfile, Recommendation, User
 from .services import build_chat_response, customer_analytics, customer_summary_payload, relevant_recommendations
 
@@ -49,7 +49,22 @@ def home(request):
 
 def account_view(request):
 	if request.user.is_authenticated:
-		return redirect("employee_dashboard" if request.user.role == User.Roles.EMPLOYEE else "customer_dashboard")
+		form = ProfileForm(request.POST or None, instance=request.user)
+		if request.method == "POST" and form.is_valid():
+			user = form.save(commit=False)
+			user.username = user.email
+			user.save()
+			messages.success(request, "Profile updated.")
+			return redirect("account")
+
+		return render(
+			request,
+			"core/profile.html",
+			{
+				"form": form,
+				"active_page": "account",
+			},
+		)
 
 	form = AccountRegistrationForm(request.POST or None)
 	if request.method == "POST" and form.is_valid():

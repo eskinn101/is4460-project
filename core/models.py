@@ -10,6 +10,10 @@ class User(AbstractUser):
 
 	email = models.EmailField(unique=True)
 	role = models.CharField(max_length=20, choices=Roles.choices, default=Roles.CUSTOMER)
+	date_of_birth = models.DateField(null=True, blank=True)
+	phone_number = models.CharField(max_length=20, blank=True)
+	city = models.CharField(max_length=120, blank=True)
+	state = models.CharField(max_length=120, blank=True)
 
 	def __str__(self):
 		return self.get_full_name() or self.username

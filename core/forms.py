@@ -34,6 +34,24 @@ class AccountRegistrationForm(forms.Form):
         return cleaned_data
 
 
+class ProfileForm(forms.ModelForm):
+    class Meta:
+        model = User
+        fields = ["email", "phone_number", "date_of_birth", "city", "state"]
+        widgets = {
+            "date_of_birth": forms.DateInput(attrs={"type": "date"}),
+            "phone_number": forms.TextInput(attrs={"placeholder": "(555) 555-5555"}),
+            "city": forms.TextInput(attrs={"placeholder": "City"}),
+            "state": forms.TextInput(attrs={"placeholder": "State"}),
+        }
+
+    def clean_email(self):
+        email = self.cleaned_data["email"].strip().lower()
+        if User.objects.filter(email=email).exclude(pk=self.instance.pk).exists():
+            raise forms.ValidationError("An account with that email already exists.")
+        return email
+
+
 class RecommendationForm(forms.ModelForm):
     class Meta:
         model = Recommendation

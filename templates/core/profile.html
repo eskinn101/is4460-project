@@ -1,0 +1,53 @@
+{% extends 'core/base.html' %}
+
+{% block title %}Moderation | Account{% endblock %}
+{% block brand_subtitle %}Profile preferences{% endblock %}
+
+{% block content %}
+<section class="page-header">
+  <span class="eyebrow">Account access</span>
+  <h1>Your profile preferences.</h1>
+  <p>
+    Keep your contact details and home location current so future recommendations can point to local food and workout options near you.
+  </p>
+</section>
+
+<section class="grid-2">
+  <article class="panel">
+    <div class="kicker">Account</div>
+    <h2>{{ request.user.get_full_name|default:request.user.username }}</h2>
+    <div class="footer-note">Role: {{ request.user.get_role_display }}</div>
+  </article>
+
+  <article class="panel">
+    <div class="kicker">Contact & location</div>
+    <h2>Update your details</h2>
+    <form method="post">
+      {% csrf_token %}
+      <div>
+        <label for="{{ form.email.id_for_label }}">Email</label>
+        {{ form.email }}
+      </div>
+      <div>
+        <label for="{{ form.phone_number.id_for_label }}">Phone number</label>
+        {{ form.phone_number }}
+      </div>
+      <div>
+        <label for="{{ form.date_of_birth.id_for_label }}">Birthday</label>
+        {{ form.date_of_birth }}
+      </div>
+      <div class="grid-2">
+        <div>
+          <label for="{{ form.city.id_for_label }}">City</label>
+          {{ form.city }}
+        </div>
+        <div>
+          <label for="{{ form.state.id_for_label }}">State</label>
+          {{ form.state }}
+        </div>
+      </div>
+      <button type="submit">Save profile</button>
+    </form>
+  </article>
+</section>
+{% endblock %}
