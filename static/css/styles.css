@@ -102,6 +102,12 @@ button,
   box-shadow: var(--shadow);
 }
 
+.button.goals-button,
+button.goals-button {
+  background: linear-gradient(145deg, #2f8f2f, #57c357);
+  color: var(--white);
+}
+
 .nav a:hover,
 .button:hover,
 button:hover {

@@ -6,9 +6,9 @@
 {% block content %}
 <section class="page-header">
   <span class="eyebrow">Personal progress</span>
-  <h1>Track health goals, activity, and wellness focus.</h1>
+  <h1>Track health goals, metrics, and wellness focus.</h1>
   <p>
-    This page uses database-backed customer records and derives health analytics from the current saved metrics.
+    This page is your customer goals hub. Use it to update profile metrics, manage goals directly, and review the same recommendation context the chatbot uses.
   </p>
 </section>
 
@@ -39,26 +39,70 @@
 
 <section class="grid-2" style="margin-top: 24px;">
   <article class="panel">
-    <div class="kicker">Current guidance</div>
-    <h2>Daily recommendation</h2>
+    <div class="kicker">Goal tracker</div>
+    <h2>Current goals</h2>
     <p>{{ request.user.health_profile.daily_recommendation }}</p>
     <div class="footer-note"><strong>Wellness focus:</strong> {{ request.user.health_profile.wellness_focus }}</div>
     <div class="list-stack">
-      {% for goal in request.user.health_goals.all %}
-        <article class="list-item"><strong>{{ goal.title }}</strong><p>Tracked within your personal health plan.</p></article>
+      {% for goal in goals %}
+        <article class="list-item">
+          <strong>{{ goal.title }}</strong>
+          <p>Tracked within your personal health plan.</p>
+          <div class="hero-actions" style="margin-top: 10px;">
+            <a class="button secondary" href="{% url 'health' %}?edit_goal={{ goal.id }}">Edit</a>
+            <form method="post" style="display: inline;">
+              {% csrf_token %}
+              <input type="hidden" name="action" value="delete_goal">
+              <input type="hidden" name="goal_id" value="{{ goal.id }}">
+              <button class="secondary" type="submit">Delete</button>
+            </form>
+          </div>
+        </article>
+      {% empty %}
+        <article class="list-item"><strong>No goals yet.</strong><p>Ask the chatbot to create one, or add one below.</p></article>
       {% endfor %}
     </div>
   </article>
 
   <article class="panel">
+    <div class="kicker">Goal actions</div>
+    <h2>Create or update a goal</h2>
+    <p>Chat requests like “my goal is…”, “change my goal…”, or “remove goal…” will update this list automatically.</p>
+    {% if selected_goal %}
+      <form method="post">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="update_goal">
+        <input type="hidden" name="goal_id" value="{{ selected_goal.id }}">
+        <div>
+          <label for="goal_title">Edit goal</label>
+          <textarea id="goal_title" name="goal_title" rows="3" required>{{ selected_goal.title }}</textarea>
+        </div>
+        <div class="hero-actions" style="margin-top: 12px;">
+          <button type="submit">Save goal changes</button>
+          <a class="button secondary" href="{% url 'health' %}">Cancel</a>
+        </div>
+      </form>
+    {% else %}
+      <form method="post">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="add_goal">
+        <div>
+          <label for="new_goal_title">New goal</label>
+          <textarea id="new_goal_title" name="new_goal_title" rows="3" placeholder="Example: Gain lean muscle while improving sleep consistency." required></textarea>
+        </div>
+        <button type="submit" style="margin-top: 12px;">Add goal</button>
+      </form>
+    {% endif %}
+  </article>
+</section>
+
+<section class="grid-2" style="margin-top: 24px;">
+  <article class="panel">
     <div class="kicker">Update plan</div>
     <h2>Edit tracked health details</h2>
     <form method="post">
       {% csrf_token %}
-      <div>
-        <label for="goals">Goals, one per line</label>
-        <textarea id="goals" name="goals" required>{{ goals_text }}</textarea>
-      </div>
+      <input type="hidden" name="action" value="save_profile">
       <div>
         <label for="{{ form.daily_recommendation.id_for_label }}">Daily recommendation</label>
         {{ form.daily_recommendation }}
@@ -90,113 +134,22 @@
       <button type="submit">Save health plan</button>
     </form>
   </article>
-</section>
 
-<section class="panel" style="margin-top: 24px;">
-  <div class="kicker">Activity analysis</div>
-  <h2>Behavior notes</h2>
-  <div class="list-stack">
-    {% for insight in analytics.insights %}
-      <article class="list-item"><p>{{ insight }}</p></article>
-    {% endfor %}
-  </div>
-</section>
-
-<section class="panel" style="margin-top: 24px;">
-  <div class="kicker">Fitness Tracking</div>
-  <h2>Log and review your weekly activity.</h2>
-  <p>Use this simple log to capture workouts, review recent activity, and keep weekly progress visible.</p>
-  <div class="fitness-grid" style="margin-top: 20px;">
-    <article class="panel fitness-card">
-      <div class="kicker">Log a Workout</div>
-      <h3>Log a Workout</h3>
-      <p>Record your activity to monitor your weekly fitness progress.</p>
-      <form method="post" action="{% url 'workout_create' %}">
-        {% csrf_token %}
-        <input type="hidden" name="workout_submit" value="1" />
-        <div>
-          <label for="{{ workout_form.workout_type.id_for_label }}">Workout type</label>
-          {{ workout_form.workout_type }}
-          {% if workout_form.workout_type.errors %}
-            <div class="form-error">{{ workout_form.workout_type.errors|join:", " }}</div>
-          {% endif %}
-        </div>
-        <div class="grid-2">
-          <div>
-            <label for="{{ workout_form.workout_date.id_for_label }}">Date</label>
-            {{ workout_form.workout_date }}
-            {% if workout_form.workout_date.errors %}
-              <div class="form-error">{{ workout_form.workout_date.errors|join:", " }}</div>
-            {% endif %}
-          </div>
-          <div>
-            <label for="{{ workout_form.duration_minutes.id_for_label }}">Duration (minutes)</label>
-            {{ workout_form.duration_minutes }}
-            {% if workout_form.duration_minutes.errors %}
-              <div class="form-error">{{ workout_form.duration_minutes.errors|join:", " }}</div>
-            {% endif %}
-          </div>
-        </div>
-        <div>
-          <label for="{{ workout_form.intensity.id_for_label }}">Intensity</label>
-          {{ workout_form.intensity }}
-          {% if workout_form.intensity.errors %}
-            <div class="form-error">{{ workout_form.intensity.errors|join:", " }}</div>
-          {% endif %}
-        </div>
-        <div>
-          <label for="{{ workout_form.notes.id_for_label }}">Notes</label>
-          {{ workout_form.notes }}
-          {% if workout_form.notes.errors %}
-            <div class="form-error">{{ workout_form.notes.errors|join:", " }}</div>
-          {% endif %}
-        </div>
-        <button type="submit">Save Workout</button>
-      </form>
-    </article>
-
-    <article class="panel fitness-card">
-      <div class="kicker">This Week</div>
-      <h3>This Week</h3>
-      <div class="list-stack">
-        <article class="list-item"><strong>{{ weekly_workout_count }} workouts completed</strong><p>Based on your logged activity records.</p></article>
-        <article class="list-item"><strong>{{ weekly_active_minutes }} active minutes</strong><p>Collected from your recent workouts.</p></article>
-        {% if most_common_workout_type %}
-          <article class="list-item"><strong>Most common activity: {{ most_common_workout_type }}</strong><p>Tracked most often in the current week.</p></article>
-        {% endif %}
-        {% if weekly_goal is not None %}
-          <article class="list-item"><strong>Weekly goal progress: {{ weekly_workout_count }} / {{ weekly_goal }}</strong><p>Your current weekly target from your health profile.</p></article>
-        {% endif %}
-      </div>
-    </article>
-  </div>
-</section>
-
-<section class="panel" style="margin-top: 24px;">
-  <div class="kicker">Recent Workouts</div>
-  <h2>Recent Workouts</h2>
-  {% if recent_workouts %}
+  <article class="panel">
+    <div class="kicker">Behavior notes</div>
+    <h2>Current coaching signals</h2>
     <div class="list-stack">
-      {% for workout in recent_workouts %}
-        <article class="list-item workout-item">
-          <div class="split-header">
-            <div>
-              <strong>{{ workout.workout_type }}</strong>
-              <p>{{ workout.workout_date|date:"F j, Y" }} · {{ workout.duration_minutes }} minutes · {{ workout.intensity }}</p>
-              {% if workout.notes %}
-                <p>{{ workout.notes }}</p>
-              {% endif %}
-            </div>
-            <form method="post" action="{% url 'workout_delete' workout.pk %}" onsubmit="return confirm('Delete this workout?');">
-              {% csrf_token %}
-              <button type="submit" class="secondary">Delete</button>
-            </form>
-          </div>
+      {% for insight in analytics.insights %}
+        <article class="list-item"><p>{{ insight }}</p></article>
+      {% endfor %}
+      {% for recommendation in recommendations %}
+        <article class="list-item">
+          <small>{{ recommendation.category }}</small>
+          <strong>{{ recommendation.title }}</strong>
+          <p>{{ recommendation.guidance }}</p>
         </article>
       {% endfor %}
     </div>
-  {% else %}
-    <div class="list-item"><p>No workouts logged yet. Add your first workout above to begin tracking your activity.</p></div>
-  {% endif %}
+  </article>
 </section>
 {% endblock %}

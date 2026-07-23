@@ -31,7 +31,7 @@ from .forms import (
 	RecommendationForm,
 )
 from .models import BotBehaviorConfig, BotBehaviorRevision, ChatMessage, CustomerBotBehaviorOverride, HealthGoal, Recommendation, RecommendationDataFile, User
-from .services import build_chat_response, customer_analytics, customer_summary_payload, detect_goal_from_message, relevant_recommendations
+from .services import build_chat_payload, build_chat_response, customer_analytics, customer_summary_payload, goal_progress_snapshot, interpret_goal_message, relevant_recommendations
 
 
 def home(request):
@@ -101,13 +101,32 @@ def customer_required(view_func):
 def customer_dashboard(request):
 	analytics = customer_analytics(request.user)
 	recommendations = relevant_recommendations(request.user)
+	ai_guidance = {
+		"summary": f"Current score is {analytics['consistency_score']} with {analytics['goal_count']} active goals.",
+		"meal_tip": "Anchor meals with protein and hydration to improve recovery and fat-loss consistency.",
+		"partner_tip": "Use Chat for targeted recommendations and Goals to track progress each week.",
+	}
 	return render(
 		request,
 		"core/customer_dashboard.html",
 		{
 			"analytics": analytics,
 			"recommendations": recommendations,
+			"ai_guidance": ai_guidance,
 			"active_page": "customer",
+		},
+	)
+
+
+@customer_required
+def goals_view(request):
+	snapshot = goal_progress_snapshot(request.user)
+	return render(
+		request,
+		"core/goals.html",
+		{
+			"goal_snapshot": snapshot,
+			"active_page": "goals",
 		},
 	)
 
@@ -147,6 +166,7 @@ def employee_dashboard(request):
 def chat_view(request):
 	chatbot_form = ChatForm(prefix="chatbot", initial={"channel": ChatMessage.Channels.CHATBOT})
 	coach_form = ChatForm(prefix="coach", initial={"channel": ChatMessage.Channels.COACH})
+	latest_chat_sources = request.session.get("latest_chat_sources")
 
 	if request.method == "POST":
 		channel = request.POST.get("channel")
@@ -158,11 +178,13 @@ def chat_view(request):
 		if form.is_valid():
 			channel = form.cleaned_data["channel"]
 			message = form.cleaned_data["message"]
-			saved_goal = detect_goal_from_message(request.user, message)
+			goal_result = interpret_goal_message(request.user, message, commit=True)
 			ChatMessage.objects.create(user=request.user, channel=channel, author_name="You", message=message)
-			bot_message = build_chat_response(request.user, channel, message)
-			if saved_goal:
-				bot_message = f"{bot_message} I saved a new goal for you: {saved_goal}."
+			chat_payload = build_chat_payload(request.user, channel, message)
+			bot_message = chat_payload["reply"]
+			if goal_result:
+				bot_message = f"{bot_message} {goal_result['message']} You can review it on your Health page."
+				chat_payload["sources"]["goals"] = [goal_result["message"]]
 			ChatMessage.objects.create(
 				user=request.user,
 				channel=channel,
@@ -170,6 +192,11 @@ def chat_view(request):
 				message=bot_message,
 				is_machine_generated=True,
 			)
+			request.session["latest_chat_sources"] = {
+				"channel": channel,
+				"message": message,
+				"sources": chat_payload["sources"],
+			}
 			return redirect("chat")
 
 	return render(
@@ -180,6 +207,7 @@ def chat_view(request):
 			"coach_form": coach_form,
 			"chatbot_messages": request.user.chat_messages.filter(channel=ChatMessage.Channels.CHATBOT),
 			"coach_messages": request.user.chat_messages.filter(channel=ChatMessage.Channels.COACH),
+			"latest_chat_sources": latest_chat_sources,
 			"active_page": "chat",
 		},
 	)
@@ -189,29 +217,61 @@ def chat_view(request):
 @require_http_methods(["GET", "POST"])
 def health_view(request):
 	profile = request.user.health_profile
+	goals_queryset = request.user.health_goals.order_by("sort_order", "id")
+	selected_goal_id = request.GET.get("edit_goal")
+	selected_goal = goals_queryset.filter(pk=selected_goal_id).first() if selected_goal_id else None
 	if request.method == "POST":
+		action = request.POST.get("action", "save_profile")
 		form = HealthProfileForm(request.POST, instance=profile)
-		goals_text = request.POST.get("goals", "")
-		if form.is_valid():
-			form.save()
-			request.user.health_goals.all().delete()
-			goals = [line.strip() for line in goals_text.splitlines() if line.strip()]
-			for index, title in enumerate(goals):
-				HealthGoal.objects.create(user=request.user, title=title, sort_order=index)
-			messages.success(request, "Health plan updated.")
-			return redirect("health")
+		if action == "save_profile":
+			if form.is_valid():
+				form.save()
+				messages.success(request, "Health plan updated.")
+				return redirect("health")
+		elif action == "add_goal":
+			new_goal_title = (request.POST.get("new_goal_title") or "").strip()
+			if new_goal_title:
+				sort_order = goals_queryset.count()
+				HealthGoal.objects.create(user=request.user, title=new_goal_title[:255], sort_order=sort_order)
+				messages.success(request, "Goal added.")
+				return redirect("health")
+			messages.error(request, "Enter a goal before saving.")
+		elif action == "update_goal":
+			goal = goals_queryset.filter(pk=request.POST.get("goal_id")).first()
+			updated_title = (request.POST.get("goal_title") or "").strip()
+			if goal and updated_title:
+				goal.title = updated_title[:255]
+				goal.save(update_fields=["title"])
+				messages.success(request, "Goal updated.")
+				return redirect("health")
+			messages.error(request, "Unable to update that goal.")
+		elif action == "delete_goal":
+			goal = goals_queryset.filter(pk=request.POST.get("goal_id")).first()
+			if goal:
+				goal.delete()
+				messages.success(request, "Goal removed.")
+				return redirect("health")
+			messages.error(request, "Goal not found.")
 	else:
 		form = HealthProfileForm(instance=profile)
 
 	analytics = customer_analytics(request.user)
+	recommendations = relevant_recommendations(request.user)
+	primary_guidance = recommendations[0].guidance if recommendations else analytics["insights"][0]
+	ai_guidance = {
+		"health_tip": primary_guidance,
+		"summary": f"You currently have {analytics['goal_count']} tracked goals. Use this page or the chatbot to create, edit, or remove goals.",
+	}
 	return render(
 		request,
 		"core/health.html",
 		{
 			"form": form,
-			"goals_text": "\n".join(request.user.health_goals.values_list("title", flat=True)),
+			"goals": goals_queryset,
+			"selected_goal": selected_goal,
 			"analytics": analytics,
-			"recommendations": relevant_recommendations(request.user),
+			"recommendations": recommendations,
+			"ai_guidance": ai_guidance,
 			"active_page": "health",
 		},
 	)
@@ -516,13 +576,17 @@ def recommendation_files_view(request):
 					if preview_analytics["water_oz"] < 64
 					else "Hydration is on track; focus on sleep and activity consistency."
 				)
-				chat_preview = build_chat_response(
+				chat_preview_payload = build_chat_payload(
 					preview_user,
 					ChatMessage.Channels.CHATBOT,
 					preview_message or "What should I focus on today?",
 					global_instructions=instructions,
 					customer_override=preview_override,
 				)
+				chat_preview = chat_preview_payload["reply"]
+				goal_action = interpret_goal_message(preview_user, preview_message, commit=False)
+				if goal_action:
+					chat_preview_payload["sources"]["goals"] = [goal_action["message"]]
 				preview_output = {
 					"summary": (
 						f"Policy words: {len(instructions.split())}. "
@@ -531,6 +595,8 @@ def recommendation_files_view(request):
 					),
 					"health_tip": health_tip,
 					"chat_reply": chat_preview,
+					"goal_action": goal_action,
+					"sources": chat_preview_payload["sources"],
 				}
 
 		elif action == "restore_behavior_revision":

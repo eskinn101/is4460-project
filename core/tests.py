@@ -55,7 +55,7 @@ class CustomerSummaryApiTests(TestCase):
 		self.assertEqual(response.status_code, 302)
 		self.customer.refresh_from_db()
 		self.assertEqual(self.customer.health_goals.count(), before_goals + 1)
-		self.assertTrue(self.customer.health_goals.filter(title__icontains="gain muscle while losing fat").exists())
+		self.assertTrue(self.customer.health_goals.filter(title="Gain muscle, lose fat").exists())
 
 		machine_reply = ChatMessage.objects.filter(
 			user=self.customer,
@@ -64,3 +64,23 @@ class CustomerSummaryApiTests(TestCase):
 		).order_by("-id").first()
 		self.assertIsNotNone(machine_reply)
 		self.assertNotIn("You mentioned:", machine_reply.message)
+		self.assertNotIn("Recommendation library match:", machine_reply.message)
+
+	def test_customer_chat_updates_and_deletes_goal_from_intent(self):
+		self.client.force_login(self.customer)
+		existing_goal = self.customer.health_goals.first()
+
+		update_response = self.client.post(
+			reverse("chat"),
+			data={"chatbot-channel": "chatbot", "chatbot-message": "Change my goal from Keep workouts regular to Walk after dinner four nights each week."},
+		)
+		self.assertEqual(update_response.status_code, 302)
+		existing_goal.refresh_from_db()
+		self.assertEqual(existing_goal.title, "Walk after dinner four nights")
+
+		delete_response = self.client.post(
+			reverse("chat"),
+			data={"chatbot-channel": "chatbot", "chatbot-message": "Remove goal Walk after dinner four nights."},
+		)
+		self.assertEqual(delete_response.status_code, 302)
+		self.assertFalse(self.customer.health_goals.filter(title="Walk after dinner four nights").exists())

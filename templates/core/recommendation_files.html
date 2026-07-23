@@ -85,6 +85,11 @@
             <small>{{ behavior_form.instructions.errors|join:", " }}</small>
           {% endif %}
         </div>
+        <div class="list-item" style="margin-top: 12px;">
+          <strong>Saved behavior policy is the live policy.</strong>
+          <p>Both the HR preview and all customer chatbot responses use the most recently saved behavior instructions.</p>
+          <button type="submit" name="action" value="save_behavior_instructions" style="margin-top: 10px;">Save behavior instructions</button>
+        </div>
         <div style="margin-top: 14px;">
           <label for="{{ customer_behavior_form.instructions.id_for_label }}">Customer override (optional)</label>
           {{ customer_behavior_form.instructions }}
@@ -98,7 +103,6 @@
         </div>
         <div style="display: flex; gap: 10px; margin-top: 12px; flex-wrap: wrap;">
           <button type="submit" name="action" value="preview_behavior">Preview behavior</button>
-          <button type="submit" name="action" value="save_behavior_instructions">Save global policy</button>
           <button type="submit" name="action" value="save_customer_behavior_override" {% if not selected_customer %}disabled{% endif %}>Save customer override</button>
         </div>
       </form>
@@ -112,7 +116,50 @@
       <h3 style="margin: 0 0 8px 0;">Preview result</h3>
       <p><strong>Summary:</strong> {{ preview_output.summary }}</p>
       <p><strong>Health tip:</strong> {{ preview_output.health_tip }}</p>
+      {% if preview_output.goal_action %}
+        <p><strong>Goal action:</strong> {{ preview_output.goal_action.message }}</p>
+      {% endif %}
       <p><strong>Chat reply:</strong> {{ preview_output.chat_reply }}</p>
+      <div class="grid-2" style="margin-top: 16px;">
+        <article>
+          <h4 style="margin-bottom: 8px;">Analytics used</h4>
+          <div class="list-stack">
+            {% for item in preview_output.sources.analytics %}
+              <article class="list-item"><p>{{ item }}</p></article>
+            {% endfor %}
+          </div>
+        </article>
+        <article>
+          <h4 style="margin-bottom: 8px;">Recommendation sources</h4>
+          <div class="list-stack">
+            {% for item in preview_output.sources.recommendations %}
+              <article class="list-item"><p>{{ item }}</p></article>
+            {% empty %}
+              <article class="list-item"><p>No recommendation records contributed to this preview.</p></article>
+            {% endfor %}
+          </div>
+        </article>
+      </div>
+      <div class="grid-2" style="margin-top: 16px;">
+        <article>
+          <h4 style="margin-bottom: 8px;">Nutrition sources</h4>
+          <div class="list-stack">
+            {% for item in preview_output.sources.nutrition %}
+              <article class="list-item"><p>{{ item }}</p></article>
+            {% empty %}
+              <article class="list-item"><p>No USDA nutrition lookup was needed for this preview.</p></article>
+            {% endfor %}
+          </div>
+        </article>
+        <article>
+          <h4 style="margin-bottom: 8px;">Behavior instructions</h4>
+          <div class="list-stack">
+            {% for item in preview_output.sources.behavior %}
+              <article class="list-item"><p>{{ item }}</p></article>
+            {% endfor %}
+          </div>
+        </article>
+      </div>
     {% endif %}
   </article>
 </section>

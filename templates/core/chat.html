@@ -27,6 +27,7 @@
         <label for="{{ chatbot_form.message.id_for_label }}">Message</label>
         {{ chatbot_form.message }}
       </div>
+      <p><small>Goal requests are applied automatically. Try: “My goal is…”, “Change my goal to…”, or “Remove goal…”. Review them on <a href="{% url 'health' %}">Health</a>.</small></p>
       <button type="submit">Send to bot</button>
     </form>
     <div class="message-stream">
@@ -53,6 +54,7 @@
         <label for="{{ coach_form.message.id_for_label }}">Message</label>
         {{ coach_form.message }}
       </div>
+      <p><small>Coach replies use the same stored customer profile, goals, and recommendation library context.</small></p>
       <button type="submit">Send to coach</button>
     </form>
     <div class="message-stream">
@@ -65,4 +67,55 @@
     </div>
   </article>
 </section>
+
+{% if latest_chat_sources %}
+<section class="panel" style="margin-top: 24px;">
+  <div class="kicker">Sources used</div>
+  <h2>Latest AI response context</h2>
+  <p><strong>Prompt channel:</strong> {{ latest_chat_sources.channel }}</p>
+  <p><strong>Prompt:</strong> {{ latest_chat_sources.message }}</p>
+  <div class="grid-2" style="margin-top: 16px;">
+    <article>
+      <h3 style="margin-bottom: 8px;">Analytics</h3>
+      <div class="list-stack">
+        {% for item in latest_chat_sources.sources.analytics %}
+          <article class="list-item"><p>{{ item }}</p></article>
+        {% endfor %}
+      </div>
+    </article>
+    <article>
+      <h3 style="margin-bottom: 8px;">Recommendations</h3>
+      <div class="list-stack">
+        {% for item in latest_chat_sources.sources.recommendations %}
+          <article class="list-item"><p>{{ item }}</p></article>
+        {% empty %}
+          <article class="list-item"><p>No recommendation records contributed to this reply.</p></article>
+        {% endfor %}
+      </div>
+    </article>
+  </div>
+  <div class="grid-2" style="margin-top: 16px;">
+    <article>
+      <h3 style="margin-bottom: 8px;">Nutrition data</h3>
+      <div class="list-stack">
+        {% for item in latest_chat_sources.sources.nutrition %}
+          <article class="list-item"><p>{{ item }}</p></article>
+        {% empty %}
+          <article class="list-item"><p>No USDA nutrition lookup was needed for this reply.</p></article>
+        {% endfor %}
+      </div>
+    </article>
+    <article>
+      <h3 style="margin-bottom: 8px;">Goal actions</h3>
+      <div class="list-stack">
+        {% for item in latest_chat_sources.sources.goals %}
+          <article class="list-item"><p>{{ item }}</p></article>
+        {% empty %}
+          <article class="list-item"><p>No goal changes were triggered.</p></article>
+        {% endfor %}
+      </div>
+    </article>
+  </div>
+</section>
+{% endif %}
 {% endblock %}

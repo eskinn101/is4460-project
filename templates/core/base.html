@@ -21,6 +21,7 @@
           {% if request.user.is_authenticated and request.user.role == 'customer' %}
             <a class="{% if active_page == 'customer' %}active{% endif %}" href="{% url 'customer_dashboard' %}">Home</a>
             <a class="{% if active_page == 'chat' %}active{% endif %}" href="{% url 'chat' %}">Chat</a>
+            <a class="{% if active_page == 'goals' %}active{% endif %}" href="{% url 'goals' %}">Goals</a>
             <a class="{% if active_page == 'health' %}active{% endif %}" href="{% url 'health' %}">Health</a>
             <a class="{% if active_page == 'meals' %}active{% endif %}" href="{% url 'meals' %}">Meals</a>
             <a class="{% if active_page == 'wellness_partners' %}active{% endif %}" href="{% url 'wellness_partners' %}">Wellness Partners</a>
