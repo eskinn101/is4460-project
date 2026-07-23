@@ -18,6 +18,7 @@
     <h2>Add a knowledge entry</h2>
     <form method="post">
       {% csrf_token %}
+      <input type="hidden" name="action" value="create_recommendation">
       <div>
         <label for="{{ form.title.id_for_label }}">Title</label>
         {{ form.title }}
@@ -36,6 +37,31 @@
       </div>
       <button type="submit">Save recommendation</button>
     </form>
+
+    {% if can_import_recommendations %}
+      <hr style="margin: 24px 0; border: 0; border-top: 1px solid rgba(13, 26, 38, 0.12);">
+      <div class="kicker">HR data import</div>
+      <h3 style="margin-top: 8px;">Upload recommendation CSV</h3>
+      <p style="margin-top: 0;">Header format: title, category, guidance, analytics_focus. Category values must be Diet, Exercise, or Wellness.</p>
+      <form method="post" enctype="multipart/form-data">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="import_recommendations">
+        <div>
+          <label for="{{ import_form.file.id_for_label }}">CSV file</label>
+          {{ import_form.file }}
+          {% if import_form.file.errors %}
+            <small>{{ import_form.file.errors|join:", " }}</small>
+          {% endif %}
+        </div>
+        <div style="margin-top: 12px;">
+          <label for="{{ import_form.replace_existing.id_for_label }}" style="display: inline-flex; gap: 8px; align-items: center;">
+            {{ import_form.replace_existing }}
+            Replace existing recommendation library
+          </label>
+        </div>
+        <button type="submit" style="margin-top: 12px;">Import file</button>
+      </form>
+    {% endif %}
   </article>
 
   <article class="panel">

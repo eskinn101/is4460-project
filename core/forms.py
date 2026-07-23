@@ -121,6 +121,21 @@ class RecommendationForm(forms.ModelForm):
         }
 
 
+class RecommendationImportForm(forms.Form):
+    file = forms.FileField(help_text="Upload a CSV file with title, category, guidance, and optional analytics_focus columns.")
+    replace_existing = forms.BooleanField(
+        required=False,
+        initial=False,
+        help_text="Replace all current recommendations before importing.",
+    )
+
+    def clean_file(self):
+        uploaded_file = self.cleaned_data["file"]
+        if not uploaded_file.name.lower().endswith(".csv"):
+            raise forms.ValidationError("Please upload a CSV file.")
+        return uploaded_file
+
+
 class ChatForm(forms.Form):
     channel = forms.ChoiceField(choices=ChatMessage.Channels.choices, widget=forms.HiddenInput())
     message = forms.CharField(widget=forms.Textarea(attrs={"rows": 4}))

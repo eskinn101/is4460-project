@@ -1,5 +1,6 @@
 from django.contrib.auth import get_user_model
 from django.core.management import call_command
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase
 from django.urls import reverse
 
@@ -423,7 +424,6 @@ class WellnessPartnersPageTests(TestCase):
 		self.assertContains(response, "Fresh Bowl Kitchen")
 		self.assertContains(response, "Exclusive Partner Rewards")
 
-
 class WorkoutTrackingTests(TestCase):
 	def setUp(self):
 		self.User = get_user_model()
@@ -508,3 +508,97 @@ class WorkoutTrackingTests(TestCase):
 
 		self.assertEqual(response.status_code, 302)
 		self.assertRedirects(response, "/?next=/workouts/create/")
+
+
+class RecommendationImportTests(TestCase):
+	def setUp(self):
+		self.User = get_user_model()
+		self.employee = self.User.objects.create_user(
+			username="coach-import@example.com",
+			email="coach-import@example.com",
+			password="test-pass-123",
+			role=self.User.Roles.EMPLOYEE,
+			is_staff=True,
+		)
+		self.hr = self.User.objects.create_user(
+			username="hr-import@example.com",
+			email="hr-import@example.com",
+			password="test-pass-123",
+			role=self.User.Roles.HR,
+			is_staff=True,
+			is_superuser=True,
+		)
+
+	def test_employee_cannot_import_recommendation_file(self):
+		self.client.force_login(self.employee)
+		initial_count = Recommendation.objects.count()
+		csv_file = SimpleUploadedFile(
+			"recommendations.csv",
+			b"title,category,guidance,analytics_focus\nHydrate break,Wellness,Drink water every two hours,hydration\n",
+			content_type="text/csv",
+		)
+
+		response = self.client.post(
+			reverse("employee_dashboard"),
+			{"action": "import_recommendations", "file": csv_file},
+			follow=True,
+		)
+
+		self.assertEqual(response.status_code, 200)
+		self.assertContains(response, "Only HR or superusers can import recommendation files.")
+		self.assertEqual(Recommendation.objects.count(), initial_count)
+
+	def test_hr_can_import_recommendation_csv(self):
+		self.client.force_login(self.hr)
+		initial_count = Recommendation.objects.count()
+		csv_file = SimpleUploadedFile(
+			"recommendations.csv",
+			(
+				"title,category,guidance,analytics_focus\n"
+				"Hydration Reset,Wellness,Drink water before each meal,hydration\n"
+				"Strength Basics,Exercise,Schedule three short workouts,mobility\n"
+			).encode("utf-8"),
+			content_type="text/csv",
+		)
+
+		response = self.client.post(
+			reverse("employee_dashboard"),
+			{"action": "import_recommendations", "file": csv_file},
+			follow=True,
+		)
+
+		self.assertEqual(response.status_code, 200)
+		self.assertContains(response, "Imported 2 recommendations from CSV.")
+		self.assertEqual(Recommendation.objects.count(), initial_count + 2)
+		self.assertTrue(Recommendation.objects.filter(title="Hydration Reset", created_by=self.hr).exists())
+
+	def test_hr_replace_mode_overwrites_existing_recommendations(self):
+		Recommendation.objects.create(
+			title="Old Recommendation",
+			category=Recommendation.Categories.DIET,
+			guidance="Old guidance",
+			analytics_focus="old",
+			created_by=self.hr,
+		)
+
+		self.client.force_login(self.hr)
+		csv_file = SimpleUploadedFile(
+			"recommendations.csv",
+			b"title,category,guidance,analytics_focus\nNew Wellness Plan,Wellness,Focus on sleep consistency,recovery\n",
+			content_type="text/csv",
+		)
+
+		response = self.client.post(
+			reverse("employee_dashboard"),
+			{
+				"action": "import_recommendations",
+				"file": csv_file,
+				"replace_existing": "on",
+			},
+			follow=True,
+		)
+
+		self.assertEqual(response.status_code, 200)
+		self.assertContains(response, "Imported 1 recommendations from CSV.")
+		self.assertEqual(Recommendation.objects.count(), 1)
+		self.assertTrue(Recommendation.objects.filter(title="New Wellness Plan").exists())

@@ -1,3 +1,5 @@
+import csv
+import io
 from functools import wraps
 
 from django.contrib import messages
@@ -5,10 +7,11 @@ from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required
 from django.http import Http404, HttpResponseForbidden, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.db import transaction
 from django.utils import timezone
 from django.views.decorators.http import require_http_methods
 
-from .forms import AccountManagementForm, ChatForm, CustomerLoginForm, CustomerRegistrationForm, EmployeeLoginForm, EmployeeRegistrationForm, HealthProfileForm, MealEntryForm, ProfileForm, RecommendationForm, WorkoutForm
+from .forms import AccountManagementForm, ChatForm, CustomerLoginForm, CustomerRegistrationForm, EmployeeLoginForm, EmployeeRegistrationForm, HealthProfileForm, MealEntryForm, ProfileForm, RecommendationForm, RecommendationImportForm, WorkoutForm
 from .models import ChatMessage, HealthGoal, HealthProfile, Recommendation, User, Workout
 from .services import build_ai_guidance, build_chat_response, customer_analytics, customer_summary_payload, relevant_recommendations
 
@@ -285,7 +288,6 @@ def customer_required(view_func):
 
 	return wrapped
 
-
 def hr_required(view_func):
 	@wraps(view_func)
 	@login_required
@@ -348,6 +350,69 @@ def account_delete_view(request, pk):
 	target.delete()
 	messages.success(request, "Account deleted.")
 	return redirect("account_management")
+
+
+def _is_hr_or_superuser(user):
+	return user.is_superuser or user.role == User.Roles.HR
+
+
+def _normalize_recommendation_category(raw_category):
+	lookup = {
+		"diet": Recommendation.Categories.DIET,
+		"exercise": Recommendation.Categories.EXERCISE,
+		"wellness": Recommendation.Categories.WELLNESS,
+	}
+	if raw_category is None:
+		return None
+	return lookup.get(str(raw_category).strip().lower())
+
+
+def _import_recommendations_csv(uploaded_file, created_by, replace_existing=False):
+	uploaded_file.seek(0)
+	decoded_stream = io.StringIO(uploaded_file.read().decode("utf-8-sig"))
+	reader = csv.DictReader(decoded_stream)
+
+	required_columns = {"title", "category", "guidance"}
+	if not reader.fieldnames:
+		raise ValueError("The CSV is missing a header row.")
+
+	header_columns = {name.strip().lower() for name in reader.fieldnames if name}
+	if not required_columns.issubset(header_columns):
+		raise ValueError("CSV must include title, category, and guidance columns.")
+
+	rows_to_create = []
+	for row_number, row in enumerate(reader, start=2):
+		title = (row.get("title") or "").strip()
+		category = _normalize_recommendation_category(row.get("category"))
+		guidance = (row.get("guidance") or "").strip()
+		analytics_focus = (row.get("analytics_focus") or "").strip()
+
+		if not title:
+			raise ValueError(f"Row {row_number}: title is required.")
+		if not category:
+			raise ValueError(f"Row {row_number}: category must be Diet, Exercise, or Wellness.")
+		if not guidance:
+			raise ValueError(f"Row {row_number}: guidance is required.")
+
+		rows_to_create.append(
+			Recommendation(
+				title=title,
+				category=category,
+				guidance=guidance,
+				analytics_focus=analytics_focus,
+				created_by=created_by,
+			)
+		)
+
+	if not rows_to_create:
+		raise ValueError("No recommendation rows were found in the uploaded CSV.")
+
+	with transaction.atomic():
+		if replace_existing:
+			Recommendation.objects.all().delete()
+		Recommendation.objects.bulk_create(rows_to_create)
+
+	return len(rows_to_create)
 
 
 @customer_required
@@ -417,13 +482,43 @@ def customer_summary_api(request):
 
 @employee_required
 def employee_dashboard(request):
-	form = RecommendationForm(request.POST or None)
-	if request.method == "POST" and form.is_valid():
-		recommendation = form.save(commit=False)
-		recommendation.created_by = request.user
-		recommendation.save()
-		messages.success(request, "Recommendation saved.")
-		return redirect("employee_dashboard")
+	form = RecommendationForm()
+	import_form = RecommendationImportForm()
+
+	if request.method == "POST":
+		action = request.POST.get("action", "create_recommendation")
+
+		if action == "create_recommendation":
+			form = RecommendationForm(request.POST)
+			if form.is_valid():
+				recommendation = form.save(commit=False)
+				recommendation.created_by = request.user
+				recommendation.save()
+				messages.success(request, "Recommendation saved.")
+				return redirect("employee_dashboard")
+
+		elif action == "import_recommendations":
+			if not _is_hr_or_superuser(request.user):
+				messages.error(request, "Only HR or superusers can import recommendation files.")
+				return redirect("employee_dashboard")
+
+			import_form = RecommendationImportForm(request.POST, request.FILES)
+			if import_form.is_valid():
+				csv_file = import_form.cleaned_data["file"]
+				replace_existing = import_form.cleaned_data["replace_existing"]
+				try:
+					imported_count = _import_recommendations_csv(
+						uploaded_file=csv_file,
+						created_by=request.user,
+						replace_existing=replace_existing,
+					)
+				except UnicodeDecodeError:
+					import_form.add_error("file", "File must be UTF-8 encoded.")
+				except ValueError as exc:
+					import_form.add_error("file", str(exc))
+				else:
+					messages.success(request, f"Imported {imported_count} recommendations from CSV.")
+					return redirect("employee_dashboard")
 
 	customers = User.objects.filter(role=User.Roles.CUSTOMER).order_by("first_name", "username")
 	customer_cards = [{"user": customer, "analytics": customer_analytics(customer)} for customer in customers]
@@ -433,6 +528,8 @@ def employee_dashboard(request):
 		"core/employee_dashboard.html",
 		{
 			"form": form,
+			"import_form": import_form,
+			"can_import_recommendations": _is_hr_or_superuser(request.user),
 			"recommendations": Recommendation.objects.select_related("created_by").all()[:8],
 			"customer_cards": customer_cards,
 			"active_page": "employee",
