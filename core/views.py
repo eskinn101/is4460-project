@@ -369,6 +369,10 @@ def _normalize_recommendation_category(raw_category):
 	return lookup.get(str(raw_category).strip().lower())
 
 
+def _normalize_column_name(column_name):
+	return str(column_name).strip().lower().replace(" ", "_").replace("-", "_")
+
+
 def _open_csv_stream(uploaded_file):
 	file_name = uploaded_file.name.lower()
 	uploaded_file.seek(0)
@@ -409,16 +413,21 @@ def _import_recommendations_csv(uploaded_file, created_by, replace_existing=Fals
 	if not reader.fieldnames:
 		raise ValueError("The CSV is missing a header row.")
 
-	header_columns = {name.strip().lower() for name in reader.fieldnames if name}
+	header_columns = {_normalize_column_name(name) for name in reader.fieldnames if name}
 	if not required_columns.issubset(header_columns):
 		raise ValueError("CSV must include title, category, and guidance columns.")
 
 	rows_to_create = []
 	for row_number, row in enumerate(reader, start=2):
-		title = (row.get("title") or "").strip()
-		category = _normalize_recommendation_category(row.get("category"))
-		guidance = (row.get("guidance") or "").strip()
-		analytics_focus = (row.get("analytics_focus") or "").strip()
+		normalized_row = {
+			_normalize_column_name(key): value
+			for key, value in row.items()
+			if key is not None
+		}
+		title = (normalized_row.get("title") or "").strip()
+		category = _normalize_recommendation_category(normalized_row.get("category"))
+		guidance = (normalized_row.get("guidance") or "").strip()
+		analytics_focus = (normalized_row.get("analytics_focus") or normalized_row.get("analyticsfocus") or "").strip()
 
 		if not title:
 			raise ValueError(f"Row {row_number}: title is required.")

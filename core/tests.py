@@ -580,6 +580,27 @@ class RecommendationImportTests(TestCase):
 		self.assertEqual(record.original_name, "recommendations.csv")
 		self.assertEqual(record.imported_rows, 2)
 
+	def test_hr_can_import_csv_with_mixed_case_headers(self):
+		self.client.force_login(self.hr)
+		csv_file = SimpleUploadedFile(
+			"mixed_headers.csv",
+			(
+				"Title,Category,Guidance,Analytics Focus\n"
+				"Hydration Reset,Wellness,Drink water before each meal,hydration\n"
+			).encode("utf-8"),
+			content_type="text/csv",
+		)
+
+		response = self.client.post(
+			reverse("recommendation_files"),
+			{"action": "upload_files", "files": csv_file},
+			follow=True,
+		)
+
+		self.assertEqual(response.status_code, 200)
+		self.assertContains(response, "Processed 1 file(s) and imported 1 recommendations.")
+		self.assertTrue(Recommendation.objects.filter(title="Hydration Reset", created_by=self.hr).exists())
+
 	def test_hr_replace_mode_overwrites_existing_recommendations(self):
 		Recommendation.objects.create(
 			title="Old Recommendation",
