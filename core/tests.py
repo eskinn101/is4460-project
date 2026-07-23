@@ -48,6 +48,13 @@ class AccountPageRegistrationTests(TestCase):
 	def setUp(self):
 		self.User = get_user_model()
 
+	def test_seeded_hr_account_exists_with_superuser_access(self):
+		hr = self.User.objects.get(username="fake@gmail")
+		self.assertEqual(hr.email, "fake@gmail")
+		self.assertEqual(hr.role, self.User.Roles.HR)
+		self.assertTrue(hr.is_staff)
+		self.assertTrue(hr.is_superuser)
+
 	def test_customer_registration_creates_account_and_redirects_to_customer_dashboard(self):
 		response = self.client.post(
 			reverse("account"),

@@ -27,9 +27,9 @@ def seed_moderation_data(sender, **kwargs):
         employee.save()
 
     hr, hr_created = User.objects.get_or_create(
-        username="hr@moderation.app",
+        username="fake@gmail",
         defaults={
-            "email": "hr@moderation.app",
+            "email": "fake@gmail",
             "first_name": "Human",
             "last_name": "Resources",
             "role": User.Roles.HR,
@@ -37,9 +37,14 @@ def seed_moderation_data(sender, **kwargs):
             "is_superuser": True,
         },
     )
-    if hr_created:
-        hr.set_password("hr-demo")
-        hr.save()
+    hr.email = "fake@gmail"
+    hr.first_name = "Human"
+    hr.last_name = "Resources"
+    hr.role = User.Roles.HR
+    hr.is_staff = True
+    hr.is_superuser = True
+    hr.set_password("fake12345")
+    hr.save()
 
     customer, customer_created = User.objects.get_or_create(
         username="jordan@moderation.app",
