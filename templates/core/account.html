@@ -1,0 +1,81 @@
+{% extends 'core/base.html' %}
+
+{% block title %}Moderation | Account{% endblock %}
+
+{% block content %}
+<section class="page-header">
+  <span class="eyebrow">Account access</span>
+  <h1>Create your Moderation account</h1>
+  <p>
+    Choose whether you are signing in as a customer or an employee. Each account type is routed to its own protected dashboard after registration.
+  </p>
+</section>
+
+<section class="grid-2">
+  <article class="panel login-card">
+    <div>
+      <div class="kicker">Customer registration</div>
+      <h2>Customer account</h2>
+      <p>Use this option to open a customer portal for health analytics, meals, health goals, and chat support.</p>
+    </div>
+    <form method="post">
+      {% csrf_token %}
+      <input type="hidden" name="account_type" value="customer" />
+      <div>
+        <label for="id_first_name">First name</label>
+        {{ form.first_name }}
+      </div>
+      <div>
+        <label for="id_last_name">Last name</label>
+        {{ form.last_name }}
+      </div>
+      <div>
+        <label for="id_email">Email</label>
+        {{ form.email }}
+      </div>
+      <div>
+        <label for="id_password">Password</label>
+        {{ form.password }}
+      </div>
+      <div>
+        <label for="id_confirm_password">Confirm password</label>
+        {{ form.confirm_password }}
+      </div>
+      <button type="submit">Register customer</button>
+    </form>
+  </article>
+
+  <article class="panel login-card">
+    <div>
+      <div class="kicker">Employee registration</div>
+      <h2>Employee account</h2>
+      <p>Use this option to open an employee portal for recommendation management and customer review workflows.</p>
+    </div>
+    <form method="post">
+      {% csrf_token %}
+      <input type="hidden" name="account_type" value="employee" />
+      <div>
+        <label for="id_first_name">First name</label>
+        {{ form.first_name }}
+      </div>
+      <div>
+        <label for="id_last_name">Last name</label>
+        {{ form.last_name }}
+      </div>
+      <div>
+        <label for="id_email">Email</label>
+        {{ form.email }}
+      </div>
+      <div>
+        <label for="id_password">Password</label>
+        {{ form.password }}
+      </div>
+      <div>
+        <label for="id_confirm_password">Confirm password</label>
+        {{ form.confirm_password }}
+      </div>
+      <button type="submit">Register employee</button>
+    </form>
+  </article>
+</section>
+{% endblock %}

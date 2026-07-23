@@ -7,8 +7,8 @@ from django.http import HttpResponseForbidden, JsonResponse
 from django.shortcuts import redirect, render
 from django.views.decorators.http import require_http_methods
 
-from .forms import ChatForm, HealthProfileForm, LoginForm, MealEntryForm, RecommendationForm
-from .models import ChatMessage, HealthGoal, Recommendation, User
+from .forms import AccountRegistrationForm, ChatForm, HealthProfileForm, LoginForm, MealEntryForm, RecommendationForm
+from .models import ChatMessage, HealthGoal, HealthProfile, Recommendation, User
 from .services import build_chat_response, customer_analytics, customer_summary_payload, relevant_recommendations
 
 
@@ -43,6 +43,51 @@ def home(request):
 			"customer_form": customer_form,
 			"employee_form": employee_form,
 			"active_page": "home",
+		},
+	)
+
+
+def account_view(request):
+	if request.user.is_authenticated:
+		return redirect("employee_dashboard" if request.user.role == User.Roles.EMPLOYEE else "customer_dashboard")
+
+	form = AccountRegistrationForm(request.POST or None)
+	if request.method == "POST" and form.is_valid():
+		role = form.cleaned_data["account_type"]
+		email = form.cleaned_data["email"]
+		password = form.cleaned_data["password"]
+		user = User.objects.create_user(
+			username=email,
+			email=email,
+			first_name=form.cleaned_data["first_name"],
+			last_name=form.cleaned_data["last_name"],
+			password=password,
+			role=role,
+		)
+
+		if role == User.Roles.CUSTOMER:
+			HealthProfile.objects.get_or_create(
+				user=user,
+				defaults={
+					"daily_recommendation": "Log meals, water, and a short walk to build a steady routine.",
+					"wellness_focus": "Consistency over intensity",
+					"steps": 0,
+					"water_oz": 0,
+					"sleep_hours": 0,
+					"workouts_per_week": 0,
+				},
+			)
+
+		login(request, user)
+		messages.success(request, f"{role.title()} account created.")
+		return redirect("employee_dashboard" if role == User.Roles.EMPLOYEE else "customer_dashboard")
+
+	return render(
+		request,
+		"core/account.html",
+		{
+			"form": form,
+			"active_page": "account",
 		},
 	)
 
