@@ -4,11 +4,11 @@ from django.contrib import messages
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required
 from django.http import Http404, HttpResponseForbidden, JsonResponse
-from django.shortcuts import redirect, render
+from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.views.decorators.http import require_http_methods
 
-from .forms import ChatForm, CustomerLoginForm, CustomerRegistrationForm, EmployeeLoginForm, EmployeeRegistrationForm, HealthProfileForm, MealEntryForm, ProfileForm, RecommendationForm, WorkoutForm
+from .forms import AccountManagementForm, ChatForm, CustomerLoginForm, CustomerRegistrationForm, EmployeeLoginForm, EmployeeRegistrationForm, HealthProfileForm, MealEntryForm, ProfileForm, RecommendationForm, WorkoutForm
 from .models import ChatMessage, HealthGoal, HealthProfile, Recommendation, User, Workout
 from .services import build_ai_guidance, build_chat_response, customer_analytics, customer_summary_payload, relevant_recommendations
 
@@ -284,6 +284,70 @@ def customer_required(view_func):
 		return view_func(request, *args, **kwargs)
 
 	return wrapped
+
+
+def hr_required(view_func):
+	@wraps(view_func)
+	@login_required
+	def wrapped(request, *args, **kwargs):
+		if not request.user.is_superuser:
+			return HttpResponseForbidden("HR access required")
+		return view_func(request, *args, **kwargs)
+
+	return wrapped
+
+
+@hr_required
+def account_management_view(request):
+	accounts = User.objects.all().order_by("role", "first_name", "username")
+	return render(
+		request,
+		"core/account_management.html",
+		{
+			"accounts": accounts,
+			"active_page": "account_management",
+		},
+	)
+
+
+@hr_required
+@require_http_methods(["GET", "POST"])
+def account_edit_view(request, pk):
+	target = get_object_or_404(User, pk=pk)
+	form = AccountManagementForm(request.POST or None, instance=target)
+
+	if request.method == "POST" and form.is_valid():
+		user = form.save(commit=False)
+		user.username = user.email
+		user.is_staff = user.role in User.Roles.employee_roles()
+		user.is_superuser = user.role == User.Roles.HR
+		user.save()
+		messages.success(request, "Account updated.")
+		return redirect("account_management")
+
+	return render(
+		request,
+		"core/account_edit.html",
+		{
+			"form": form,
+			"target": target,
+			"active_page": "account_management",
+		},
+	)
+
+
+@hr_required
+@require_http_methods(["POST"])
+def account_delete_view(request, pk):
+	target = get_object_or_404(User, pk=pk)
+
+	if target.pk == request.user.pk:
+		messages.error(request, "You cannot delete your own account.")
+		return redirect("account_management")
+
+	target.delete()
+	messages.success(request, "Account deleted.")
+	return redirect("account_management")
 
 
 @customer_required

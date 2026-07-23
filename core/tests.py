@@ -102,6 +102,158 @@ class LoginFlowTests(TestCase):
 		self.assertFalse(response.wsgi_request.user.is_authenticated)
 
 
+class HRAdminPermissionsTests(TestCase):
+	"""Confirms the HR/superuser tier can edit and delete any account; other tiers cannot."""
+
+	def setUp(self):
+		self.User = get_user_model()
+		self.hr = self.User.objects.create_user(
+			username="hr-admin@example.com",
+			email="hr-admin@example.com",
+			password="test-pass-123",
+			role=self.User.Roles.HR,
+			is_staff=True,
+			is_superuser=True,
+		)
+		self.employee = self.User.objects.create_user(
+			username="coach-plain@example.com",
+			email="coach-plain@example.com",
+			password="test-pass-123",
+			role=self.User.Roles.EMPLOYEE,
+			is_staff=True,
+		)
+		self.target = self.User.objects.create_user(
+			username="editable-user@example.com",
+			email="editable-user@example.com",
+			password="test-pass-123",
+			role=self.User.Roles.CUSTOMER,
+			first_name="Old",
+		)
+
+	def test_hr_can_edit_another_users_account(self):
+		self.client.force_login(self.hr)
+		change_url = reverse("admin:core_user_change", args=[self.target.pk])
+
+		response = self.client.post(
+			change_url,
+			{
+				"username": self.target.username,
+				"first_name": "Updated",
+				"last_name": self.target.last_name,
+				"email": self.target.email,
+				"role": self.User.Roles.CUSTOMER,
+				"date_joined_0": self.target.date_joined.date().isoformat(),
+				"date_joined_1": self.target.date_joined.time().strftime("%H:%M:%S"),
+			},
+		)
+
+		self.assertEqual(response.status_code, 302)
+		self.target.refresh_from_db()
+		self.assertEqual(self.target.first_name, "Updated")
+
+	def test_hr_can_delete_another_users_account(self):
+		self.client.force_login(self.hr)
+		delete_url = reverse("admin:core_user_delete", args=[self.target.pk])
+
+		response = self.client.post(delete_url, {"post": "yes"})
+
+		self.assertEqual(response.status_code, 302)
+		self.assertFalse(self.User.objects.filter(pk=self.target.pk).exists())
+
+	def test_plain_employee_cannot_edit_or_delete_accounts(self):
+		self.client.force_login(self.employee)
+
+		change_url = reverse("admin:core_user_change", args=[self.target.pk])
+		delete_url = reverse("admin:core_user_delete", args=[self.target.pk])
+
+		self.assertEqual(self.client.get(change_url).status_code, 403)
+		self.assertEqual(self.client.get(delete_url).status_code, 403)
+		self.assertTrue(self.User.objects.filter(pk=self.target.pk).exists())
+
+
+class AccountManagementPageTests(TestCase):
+	"""Covers the in-app Manage Accounts page (as opposed to Django's /admin/)."""
+
+	def setUp(self):
+		self.User = get_user_model()
+		self.hr = self.User.objects.create_user(
+			username="hr-manager@example.com",
+			email="hr-manager@example.com",
+			password="test-pass-123",
+			role=self.User.Roles.HR,
+			is_staff=True,
+			is_superuser=True,
+		)
+		self.employee = self.User.objects.create_user(
+			username="coach-plain@example.com",
+			email="coach-plain@example.com",
+			password="test-pass-123",
+			role=self.User.Roles.EMPLOYEE,
+			is_staff=True,
+		)
+		self.customer = self.User.objects.create_user(
+			username="jane@example.com",
+			email="jane@example.com",
+			password="test-pass-123",
+			role=self.User.Roles.CUSTOMER,
+			first_name="Jane",
+		)
+
+	def test_hr_can_view_account_management_page(self):
+		self.client.force_login(self.hr)
+
+		response = self.client.get(reverse("account_management"))
+
+		self.assertEqual(response.status_code, 200)
+		self.assertContains(response, "jane@example.com")
+		self.assertContains(response, "coach-plain@example.com")
+
+	def test_hr_can_edit_and_promote_an_account(self):
+		self.client.force_login(self.hr)
+
+		response = self.client.post(
+			reverse("account_edit", args=[self.customer.pk]),
+			{
+				"first_name": "Janet",
+				"last_name": self.customer.last_name,
+				"email": self.customer.email,
+				"role": self.User.Roles.EMPLOYEE,
+			},
+		)
+
+		self.assertRedirects(response, reverse("account_management"))
+		self.customer.refresh_from_db()
+		self.assertEqual(self.customer.first_name, "Janet")
+		self.assertEqual(self.customer.role, self.User.Roles.EMPLOYEE)
+		self.assertTrue(self.customer.is_staff)
+		self.assertFalse(self.customer.is_superuser)
+
+	def test_hr_can_delete_an_account(self):
+		self.client.force_login(self.hr)
+
+		response = self.client.post(reverse("account_delete", args=[self.customer.pk]))
+
+		self.assertRedirects(response, reverse("account_management"))
+		self.assertFalse(self.User.objects.filter(pk=self.customer.pk).exists())
+
+	def test_hr_cannot_delete_their_own_account(self):
+		self.client.force_login(self.hr)
+
+		response = self.client.post(reverse("account_delete", args=[self.hr.pk]))
+
+		self.assertRedirects(response, reverse("account_management"))
+		self.assertTrue(self.User.objects.filter(pk=self.hr.pk).exists())
+
+	def test_non_superuser_accounts_are_forbidden(self):
+		for account in (self.employee, self.customer):
+			self.client.force_login(account)
+
+			self.assertEqual(self.client.get(reverse("account_management")).status_code, 403)
+			self.assertEqual(self.client.get(reverse("account_edit", args=[self.hr.pk])).status_code, 403)
+			self.assertEqual(self.client.post(reverse("account_delete", args=[self.hr.pk])).status_code, 403)
+			self.client.logout()
+
+
 class CustomerSummaryApiTests(TestCase):
 	def setUp(self):
 		self.User = get_user_model()

@@ -1,0 +1,37 @@
+{% extends 'core/base.html' %}
+
+{% block title %}Moderation | Manage Accounts{% endblock %}
+{% block brand_subtitle %}Account management{% endblock %}
+
+{% block content %}
+<section class="page-header">
+  <span class="eyebrow">HR access</span>
+  <h1>Manage every account on the platform.</h1>
+  <p>
+    Edit contact details and roles, or remove an account entirely. Changes here take effect immediately.
+  </p>
+</section>
+
+<section class="panel">
+  <div class="kicker">All accounts</div>
+  <h2>{{ accounts|length }} total account{{ accounts|length|pluralize }}</h2>
+  <div class="list-stack">
+    {% for account in accounts %}
+      <article class="list-item">
+        <small>{{ account.get_role_display }}{% if account.pk == request.user.pk %} &middot; this is you{% endif %}</small>
+        <strong>{{ account.get_full_name|default:account.username }}</strong>
+        <p>{{ account.email }}</p>
+        <div class="inline-actions" style="margin-top: 10px;">
+          <a class="button secondary" href="{% url 'account_edit' account.pk %}">Edit</a>
+          {% if account.pk != request.user.pk %}
+            <form method="post" action="{% url 'account_delete' account.pk %}" onsubmit="return confirm('Delete {{ account.username }}? This cannot be undone.');">
+              {% csrf_token %}
+              <button type="submit" class="danger">Delete</button>
+            </form>
+          {% endif %}
+        </div>
+      </article>
+    {% endfor %}
+  </div>
+</section>
+{% endblock %}

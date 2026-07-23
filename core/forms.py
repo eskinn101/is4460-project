@@ -81,6 +81,18 @@ class EmployeeRegistrationForm(AccountRegistrationForm):
     account_type = forms.ChoiceField(choices=User.Roles.employee_choices())
 
 
+class AccountManagementForm(forms.ModelForm):
+    class Meta:
+        model = User
+        fields = ["first_name", "last_name", "email", "role"]
+
+    def clean_email(self):
+        email = self.cleaned_data["email"].strip().lower()
+        if User.objects.filter(email=email).exclude(pk=self.instance.pk).exists():
+            raise forms.ValidationError("An account with that email already exists.")
+        return email
+
+
 class ProfileForm(forms.ModelForm):
     class Meta:
         model = User

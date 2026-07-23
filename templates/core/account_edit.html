@@ -1,0 +1,38 @@
+{% extends 'core/base.html' %}
+
+{% block title %}Moderation | Edit Account{% endblock %}
+{% block brand_subtitle %}Account management{% endblock %}
+
+{% block content %}
+<section class="page-header">
+  <span class="eyebrow">HR access</span>
+  <h1>Edit {{ target.get_full_name|default:target.username }}</h1>
+  <p>Update this account's details or role. Changing the role adjusts staff and superuser access to match.</p>
+</section>
+
+<section class="panel">
+  <form method="post">
+    {% csrf_token %}
+    <div>
+      <label for="{{ form.first_name.id_for_label }}">First name</label>
+      {{ form.first_name }}
+    </div>
+    <div>
+      <label for="{{ form.last_name.id_for_label }}">Last name</label>
+      {{ form.last_name }}
+    </div>
+    <div>
+      <label for="{{ form.email.id_for_label }}">Email</label>
+      {{ form.email }}
+    </div>
+    <div>
+      <label for="{{ form.role.id_for_label }}">Role</label>
+      {{ form.role }}
+    </div>
+    <div class="inline-actions" style="margin-top: 16px;">
+      <button type="submit">Save changes</button>
+      <a class="button secondary" href="{% url 'account_management' %}">Cancel</a>
+    </div>
+  </form>
+</section>
+{% endblock %}
