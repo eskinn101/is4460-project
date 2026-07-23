@@ -3,13 +3,145 @@ from functools import wraps
 from django.contrib import messages
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required
-from django.http import HttpResponseForbidden, JsonResponse
+from django.http import Http404, HttpResponseForbidden, JsonResponse
 from django.shortcuts import redirect, render
 from django.views.decorators.http import require_http_methods
 
 from .forms import AccountRegistrationForm, ChatForm, HealthProfileForm, LoginForm, MealEntryForm, ProfileForm, RecommendationForm
 from .models import ChatMessage, HealthGoal, HealthProfile, Recommendation, User
 from .services import build_chat_response, customer_analytics, customer_summary_payload, relevant_recommendations
+
+
+PARTNER_DATA = [
+	{
+		"slug": "fresh-bowl-kitchen",
+		"name": "Fresh Bowl Kitchen",
+		"category": "Restaurant",
+		"category_key": "restaurants",
+		"description": "A bright, protein-forward spot serving balanced bowls and hearty salads that fit busy routines.",
+		"location": "2.4 mi away • Midtown",
+		"distance": "2.4 mi",
+		"rating": 4.8,
+		"match_score": 94,
+		"recommendation_reason": "Recommended because its high-protein meals align with your nutrition goals and recent workout activity.",
+		"promotion": "20% off a high-protein bowl this week",
+		"is_featured": True,
+		"is_nearby": True,
+		"tags": ["restaurants", "nearby", "discounts"],
+		"offers": [
+			{"name": "Grilled Chicken Power Bowl", "calories": "610 kcal", "protein": "42g", "carbs": "58g", "fat": "18g"},
+			{"name": "Plant-Based Protein Smoothie", "calories": "340 kcal", "protein": "24g", "carbs": "41g", "fat": "10g"},
+		],
+		"services": [],
+		"detail_blurb": "This partner is known for flexible meal ordering and nutrition-friendly menus that support steady, practical progress.",
+	},
+	{
+		"slug": "core-strength-studio",
+		"name": "Core Strength Studio",
+		"category": "Gym",
+		"category_key": "gyms",
+		"description": "A welcoming strength and mobility studio that offers beginner-friendly coaching and recovery support.",
+		"location": "4.1 mi away • North Loop",
+		"distance": "4.1 mi",
+		"rating": 4.7,
+		"match_score": 91,
+		"recommendation_reason": "Recommended because your recent activity suggests a strength-focused plan would complement your goals.",
+		"promotion": "Free seven-day gym trial for new members",
+		"is_featured": True,
+		"is_nearby": False,
+		"tags": ["gyms", "discounts"],
+		"offers": [
+			{"name": "Beginner Strength Training Session", "service_type": "Coach-led circuit", "duration": "45 min", "difficulty": "Beginner"},
+			{"name": "Mobility Recovery Flow", "service_type": "Recovery class", "duration": "30 min", "difficulty": "All levels"},
+		],
+		"services": [],
+		"detail_blurb": "The studio pairs guided coaching with approachable sessions that fit recurring wellness routines.",
+	},
+	{
+		"slug": "balance-meal-prep",
+		"name": "Balance Meal Prep",
+		"category": "Meal Prep",
+		"category_key": "meal-prep",
+		"description": "Weekly meal prep bundles built around protein balance, portion control, and convenient delivery.",
+		"location": "1.8 mi away • Riverfront",
+		"distance": "1.8 mi",
+		"rating": 4.9,
+		"match_score": 96,
+		"recommendation_reason": "Recommended because its meal bundles support your balanced nutrition and time-saving routine.",
+		"promotion": "Buy one weekly plan, get a second half off",
+		"is_featured": True,
+		"is_nearby": True,
+		"tags": ["meal-prep", "nearby", "discounts"],
+		"offers": [
+			{"name": "Protein Power Bundle", "calories": "760 kcal", "protein": "55g", "carbs": "72g", "fat": "24g"},
+			{"name": "Plant Recovery Box", "calories": "680 kcal", "protein": "31g", "carbs": "80g", "fat": "20g"},
+		],
+		"services": [],
+		"detail_blurb": "The service focuses on consistent, high-protein meals designed to reduce decision fatigue.",
+	},
+	{
+		"slug": "restore-wellness-center",
+		"name": "Restore Wellness Center",
+		"category": "Wellness Service",
+		"category_key": "wellness-services",
+		"description": "A wellness studio offering nutrition coaching, sleep support, and mindfulness sessions tailored to lifestyle goals.",
+		"location": "3.6 mi away • Harbor District",
+		"distance": "3.6 mi",
+		"rating": 4.6,
+		"match_score": 89,
+		"recommendation_reason": "Recommended because its coaching options pair well with your wellness and recovery focus.",
+		"promotion": "Free nutrition coaching consult with a membership plan",
+		"is_featured": False,
+		"is_nearby": False,
+		"tags": ["wellness-services", "discounts"],
+		"offers": [
+			{"name": "Nutrition Coaching Consultation", "service_type": "Virtual coaching", "duration": "30 min", "difficulty": "All levels"},
+			{"name": "Sleep Reset Session", "service_type": "Guided relaxation", "duration": "20 min", "difficulty": "Beginner"},
+		],
+		"services": [],
+		"detail_blurb": "The center offers practical coaching support for sustainable habit building without medical claims.",
+	},
+	{
+		"slug": "green-juice-bar",
+		"name": "Green Juice Bar",
+		"category": "Smoothie Bar",
+		"category_key": "smoothie-bars",
+		"description": "A fast, fresh option for smoothies, protein shakes, and simple post-workout refuels.",
+		"location": "0.9 mi away • East Market",
+		"distance": "0.9 mi",
+		"rating": 4.5,
+		"match_score": 87,
+		"recommendation_reason": "Recommended because its post-workout options fit your recent active lifestyle.",
+		"promotion": "Buy one, get one smoothie",
+		"is_featured": False,
+		"is_nearby": True,
+		"tags": ["smoothie-bars", "nearby", "discounts"],
+		"offers": [
+			{"name": "Berry Protein Smoothie", "calories": "320 kcal", "protein": "22g", "carbs": "35g", "fat": "8g"},
+		],
+		"services": [],
+		"detail_blurb": "This partner is useful for quick recovery drinks around workouts and commutes.",
+	},
+]
+
+REWARDS_DATA = [
+	{"partner": "Fresh Bowl Kitchen", "title": "20% off a high-protein meal", "description": "Enjoy a discounted protein-forward bowl for your next lunch break.", "expires": "Aug 15, 2026"},
+	{"partner": "Core Strength Studio", "title": "Free seven-day gym trial", "description": "Try a guided strength program with no commitment for the first week.", "expires": "Aug 30, 2026"},
+	{"partner": "Green Juice Bar", "title": "Buy one, get one smoothie", "description": "Use this reward for a post-workout refresh with a friend.", "expires": "Sep 02, 2026"},
+]
+
+OFFERS_DATA = [
+	{"name": "Grilled Chicken Power Bowl", "calories": "610 kcal", "protein": "42g", "carbs": "58g", "fat": "18g"},
+	{"name": "Plant-Based Protein Smoothie", "calories": "340 kcal", "protein": "24g", "carbs": "41g", "fat": "10g"},
+	{"name": "Beginner Strength Training Session", "service_type": "Coach-led circuit", "duration": "45 min", "difficulty": "Beginner"},
+	{"name": "Nutrition Coaching Consultation", "service_type": "Virtual coaching", "duration": "30 min", "difficulty": "All levels"},
+]
+
+NEARBY_DATA = [
+	{"name": "Fresh Bowl Kitchen", "distance": "2.4 mi", "category": "Restaurant"},
+	{"name": "Green Juice Bar", "distance": "0.9 mi", "category": "Smoothie Bar"},
+	{"name": "Balance Meal Prep", "distance": "1.8 mi", "category": "Meal Prep"},
+]
 
 
 def home(request):
@@ -132,6 +264,39 @@ def customer_required(view_func):
 		return view_func(request, *args, **kwargs)
 
 	return wrapped
+
+
+@customer_required
+def wellness_partners_view(request):
+	selected_category = request.GET.get("category", "all")
+	partners = [partner for partner in PARTNER_DATA if selected_category == "all" or selected_category in partner["tags"] or (selected_category == "nearby" and partner["is_nearby"]) or (selected_category == "discounts" and partner["promotion"])]
+	return render(
+		request,
+		"core/wellness_partners.html",
+		{
+			"partners": partners,
+			"rewards": REWARDS_DATA,
+			"offers": OFFERS_DATA,
+			"nearby_partners": NEARBY_DATA,
+			"selected_category": selected_category,
+			"active_page": "wellness_partners",
+		},
+	)
+
+
+@customer_required
+def wellness_partner_detail_view(request, slug):
+	partner = next((entry for entry in PARTNER_DATA if entry["slug"] == slug), None)
+	if partner is None:
+		raise Http404("Partner not found")
+	return render(
+		request,
+		"core/wellness_partner_detail.html",
+		{
+			"partner": partner,
+			"active_page": "wellness_partners",
+		},
+	)
 
 
 @customer_required

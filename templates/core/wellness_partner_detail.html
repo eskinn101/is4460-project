@@ -1,0 +1,48 @@
+{% extends 'core/base.html' %}
+
+{% block title %}Moderation | {{ partner.name }}{% endblock %}
+{% block brand_subtitle %}Customer hub{% endblock %}
+
+{% block content %}
+<section class="page-header">
+  <span class="eyebrow">Partner details</span>
+  <h1>{{ partner.name }}</h1>
+  <p>{{ partner.description }}</p>
+</section>
+
+<section class="grid-2">
+  <article class="panel">
+    <div class="kicker">Wellness match</div>
+    <h2>{{ partner.match_score }}% AI wellness match</h2>
+    <p>{{ partner.recommendation_reason }}</p>
+    <div class="footer-note">{{ partner.detail_blurb }}</div>
+    <div class="hero-actions" style="margin-top: 14px;">
+      <button class="secondary" type="button">Save to Favorites</button>
+      <button class="secondary" type="button" onclick="alert('Directions preview coming soon.')">Directions</button>
+    </div>
+  </article>
+
+  <article class="panel">
+    <div class="kicker">Promotions</div>
+    <h2>{{ partner.promotion }}</h2>
+    <p>Featured offer available for a limited time.</p>
+  </article>
+</section>
+
+<section class="panel" style="margin-top: 24px;">
+  <div class="kicker">Recommended offerings</div>
+  <h2>Menu items and services</h2>
+  <div class="list-stack">
+    {% for offer in partner.offers %}
+      <article class="list-item">
+        <strong>{{ offer.name }}</strong>
+        {% if offer.calories %}
+          <p>Calories: {{ offer.calories }} • Protein: {{ offer.protein }} • Carbs: {{ offer.carbs }} • Fat: {{ offer.fat }}</p>
+        {% else %}
+          <p>Service type: {{ offer.service_type }} • Duration: {{ offer.duration }} • Difficulty: {{ offer.difficulty }}</p>
+        {% endif %}
+      </article>
+    {% endfor %}
+  </div>
+</section>
+{% endblock %}

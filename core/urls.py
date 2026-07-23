@@ -12,4 +12,6 @@ urlpatterns = [
     path("chat/", views.chat_view, name="chat"),
     path("health/", views.health_view, name="health"),
     path("meals/", views.meals_view, name="meals"),
+    path("wellness-partners/", views.wellness_partners_view, name="wellness_partners"),
+    path("wellness-partners/<slug:slug>/", views.wellness_partner_detail_view, name="wellness_partner_detail"),
 ]

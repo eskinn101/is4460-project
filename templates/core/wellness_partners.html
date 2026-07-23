@@ -1,0 +1,145 @@
+{% extends 'core/base.html' %}
+
+{% block title %}Moderation | Wellness Partners{% endblock %}
+{% block brand_subtitle %}Customer hub{% endblock %}
+
+{% block content %}
+<section class="page-header">
+  <span class="eyebrow">AI-assisted recommendations</span>
+  <h1>Wellness Partners</h1>
+  <p>
+    Discover restaurants, gyms, and wellness services selected to support your personal health goals.
+  </p>
+  <div class="hero-actions" style="margin-top: 16px;">
+    <span class="pill">High Protein</span>
+    <span class="pill">Improve Fitness</span>
+    <span class="pill">Balanced Nutrition</span>
+    <span class="pill">Nearby Options</span>
+  </div>
+</section>
+
+<section class="panel">
+  <div class="split-header">
+    <div>
+      <div class="kicker">AI Recommended for You</div>
+      <h2>Curated partners aligned to your goals</h2>
+    </div>
+  </div>
+
+  <div class="filter-row" role="group" aria-label="Filter partners">
+    <a class="filter-chip {% if selected_category == 'all' %}active{% endif %}" href="{% url 'wellness_partners' %}">All Partners</a>
+    <a class="filter-chip {% if selected_category == 'restaurants' %}active{% endif %}" href="{% url 'wellness_partners' %}?category=restaurants">Restaurants</a>
+    <a class="filter-chip {% if selected_category == 'gyms' %}active{% endif %}" href="{% url 'wellness_partners' %}?category=gyms">Gyms</a>
+    <a class="filter-chip {% if selected_category == 'meal-prep' %}active{% endif %}" href="{% url 'wellness_partners' %}?category=meal-prep">Meal Prep</a>
+    <a class="filter-chip {% if selected_category == 'smoothie-bars' %}active{% endif %}" href="{% url 'wellness_partners' %}?category=smoothie-bars">Smoothie Bars</a>
+    <a class="filter-chip {% if selected_category == 'wellness-services' %}active{% endif %}" href="{% url 'wellness_partners' %}?category=wellness-services">Wellness Services</a>
+    <a class="filter-chip {% if selected_category == 'nearby' %}active{% endif %}" href="{% url 'wellness_partners' %}?category=nearby">Nearby</a>
+    <a class="filter-chip {% if selected_category == 'discounts' %}active{% endif %}" href="{% url 'wellness_partners' %}?category=discounts">Discounts</a>
+  </div>
+
+  <div class="grid-2" style="margin-top: 20px;">
+    {% for partner in partners %}
+      <article class="feature-card">
+        <div class="split-header">
+          <div>
+            <span class="kicker">{{ partner.category }}</span>
+            <h3>{{ partner.name }}</h3>
+          </div>
+          <span class="match-pill">{{ partner.match_score }}% match</span>
+        </div>
+        <p>{{ partner.description }}</p>
+        <div class="meta-row">
+          <span>{{ partner.location }}</span>
+          <span>★ {{ partner.rating }}</span>
+        </div>
+        <div class="list-item" style="margin-top: 12px;">
+          <small>Why recommended</small>
+          <p>{{ partner.recommendation_reason }}</p>
+        </div>
+        <div class="footer-note">Promotion: {{ partner.promotion }}</div>
+        <div class="hero-actions" style="margin-top: 12px;">
+          <a class="button secondary" href="{% url 'wellness_partner_detail' partner.slug %}">View Details</a>
+          <button class="secondary" type="button">Save</button>
+        </div>
+      </article>
+    {% empty %}
+      <article class="feature-card">
+        <span class="kicker">No partners yet</span>
+        <h3>No recommendations match this filter.</h3>
+      </article>
+    {% endfor %}
+  </div>
+</section>
+
+<section class="grid-2" style="margin-top: 24px;">
+  <article class="panel">
+    <div class="kicker">Exclusive Partner Rewards</div>
+    <h2>Current offers worth a look</h2>
+    <div class="list-stack">
+      {% for reward in rewards %}
+        <article class="list-item">
+          <small>{{ reward.partner }}</small>
+          <strong>{{ reward.title }}</strong>
+          <p>{{ reward.description }}</p>
+          <div class="footer-note">Expires {{ reward.expires }}</div>
+          <div class="hero-actions" style="margin-top: 10px;">
+            <button type="button" class="secondary" onclick="alert('Reward redeemed for prototype demo.')">Redeem</button>
+          </div>
+        </article>
+      {% endfor %}
+    </div>
+  </article>
+
+  <article class="panel">
+    <div class="kicker">Why These Partners?</div>
+    <h2>AI-assisted recommendations</h2>
+    <p>
+      These suggestions are based on available customer data such as wellness goals, meal history, workout activity, dietary preferences, location, and previous engagement. They are wellness guidance and not medical advice.
+    </p>
+  </article>
+</section>
+
+<section class="grid-2" style="margin-top: 24px;">
+  <article class="panel">
+    <div class="kicker">Healthy Menu and Service Picks</div>
+    <h2>Recommended offerings</h2>
+    <div class="list-stack">
+      {% for offer in offers %}
+        <article class="list-item">
+          <strong>{{ offer.name }}</strong>
+          {% if offer.calories %}
+            <p>Calories: {{ offer.calories }} • Protein: {{ offer.protein }} • Carbs: {{ offer.carbs }} • Fat: {{ offer.fat }}</p>
+          {% else %}
+            <p>Service type: {{ offer.service_type }} • Duration: {{ offer.duration }} • Difficulty: {{ offer.difficulty }}</p>
+          {% endif %}
+        </article>
+      {% endfor %}
+    </div>
+  </article>
+
+  <article class="panel">
+    <div class="kicker">Nearby Partners</div>
+    <h2>Fast options near you</h2>
+    <div class="list-stack">
+      {% for nearby in nearby_partners %}
+        <article class="list-item">
+          <strong>{{ nearby.name }}</strong>
+          <p>{{ nearby.distance }} • {{ nearby.category }}</p>
+          <div class="hero-actions" style="margin-top: 10px;">
+            <button type="button" class="secondary" onclick="alert('Directions preview coming soon.')">Directions</button>
+          </div>
+        </article>
+      {% endfor %}
+    </div>
+  </article>
+</section>
+
+<section class="panel" style="margin-top: 24px;">
+  <div class="kicker">Need help choosing?</div>
+  <h2>Ask the AI Coach</h2>
+  <p>Try a question like “Which nearby restaurant fits my calorie goal?”</p>
+  <div class="hero-actions" style="margin-top: 14px;">
+    <a class="button" href="{% url 'chat' %}">Open AI coach</a>
+  </div>
+</section>
+{% endblock %}

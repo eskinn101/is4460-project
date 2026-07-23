@@ -81,3 +81,29 @@ class AccountPageRegistrationTests(TestCase):
 		self.assertEqual(response.status_code, 302)
 		self.assertRedirects(response, reverse("employee_dashboard"))
 		self.assertTrue(self.User.objects.filter(email="newemployee@example.com", role=self.User.Roles.EMPLOYEE).exists())
+
+
+class WellnessPartnersPageTests(TestCase):
+	def setUp(self):
+		self.User = get_user_model()
+		self.customer = self.User.objects.create_user(
+			username="customer@example.com",
+			email="customer@example.com",
+			password="test-pass-123",
+			role=self.User.Roles.CUSTOMER,
+		)
+
+	def test_anonymous_users_are_redirected_from_wellness_partners_page(self):
+		response = self.client.get(reverse("wellness_partners"))
+
+		self.assertEqual(response.status_code, 302)
+		self.assertRedirects(response, "/?next=/wellness-partners/")
+
+	def test_customer_users_can_view_wellness_partners_page(self):
+		self.client.force_login(self.customer)
+		response = self.client.get(reverse("wellness_partners"))
+
+		self.assertEqual(response.status_code, 200)
+		self.assertContains(response, "Wellness Partners")
+		self.assertContains(response, "Fresh Bowl Kitchen")
+		self.assertContains(response, "Exclusive Partner Rewards")
