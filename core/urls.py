@@ -9,6 +9,7 @@ urlpatterns = [
     path("customer/", views.customer_dashboard, name="customer_dashboard"),
     path("api/customer/summary/", views.customer_summary_api, name="customer_summary_api"),
     path("employee/", views.employee_dashboard, name="employee_dashboard"),
+    path("employee/recommendation-files/", views.recommendation_files_view, name="recommendation_files"),
     path("employee/accounts/", views.account_management_view, name="account_management"),
     path("employee/accounts/<int:pk>/edit/", views.account_edit_view, name="account_edit"),
     path("employee/accounts/<int:pk>/delete/", views.account_delete_view, name="account_delete"),

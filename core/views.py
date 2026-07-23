@@ -13,8 +13,8 @@ from django.db import transaction
 from django.utils import timezone
 from django.views.decorators.http import require_http_methods
 
-from .forms import AccountManagementForm, ChatForm, CustomerLoginForm, CustomerRegistrationForm, EmployeeLoginForm, EmployeeRegistrationForm, HealthProfileForm, MealEntryForm, ProfileForm, RecommendationForm, RecommendationImportForm, WorkoutForm
-from .models import ChatMessage, HealthGoal, HealthProfile, Recommendation, User, Workout
+from .forms import AccountManagementForm, ChatForm, CustomerLoginForm, CustomerRegistrationForm, EmployeeLoginForm, EmployeeRegistrationForm, HealthProfileForm, MealEntryForm, ProfileForm, RecommendationForm, RecommendationMultiImportForm, WorkoutForm
+from .models import ChatMessage, HealthGoal, HealthProfile, Recommendation, RecommendationDataFile, User, Workout
 from .services import build_ai_guidance, build_chat_response, customer_analytics, customer_summary_payload, relevant_recommendations
 
 
@@ -516,15 +516,9 @@ def customer_summary_api(request):
 @employee_required
 def employee_dashboard(request):
 	form = RecommendationForm()
-	import_form = RecommendationImportForm()
 
 	if request.method == "POST":
-		try:
-			action = request.POST.get("action", "create_recommendation")
-		except RequestDataTooBig:
-			import_form = RecommendationImportForm()
-			import_form.add_error("file", "Upload too large. Limit is 25 MB.")
-			action = None
+		action = request.POST.get("action", "create_recommendation")
 
 		if action == "create_recommendation":
 			form = RecommendationForm(request.POST)
@@ -535,29 +529,6 @@ def employee_dashboard(request):
 				messages.success(request, "Recommendation saved.")
 				return redirect("employee_dashboard")
 
-		elif action == "import_recommendations":
-			if not _is_hr_or_superuser(request.user):
-				messages.error(request, "Only HR or superusers can import recommendation files.")
-				return redirect("employee_dashboard")
-
-			import_form = RecommendationImportForm(request.POST, request.FILES)
-			if import_form.is_valid():
-				csv_file = import_form.cleaned_data["file"]
-				replace_existing = import_form.cleaned_data["replace_existing"]
-				try:
-					imported_count = _import_recommendations_csv(
-						uploaded_file=csv_file,
-						created_by=request.user,
-						replace_existing=replace_existing,
-					)
-				except ValueError as exc:
-					import_form.add_error("file", str(exc))
-				except UnicodeDecodeError:
-					import_form.add_error("file", "File must be UTF-8 encoded.")
-				else:
-					messages.success(request, f"Imported {imported_count} recommendations from CSV.")
-					return redirect("employee_dashboard")
-
 	customers = User.objects.filter(role=User.Roles.CUSTOMER).order_by("first_name", "username")
 	customer_cards = [{"user": customer, "analytics": customer_analytics(customer)} for customer in customers]
 
@@ -566,11 +537,117 @@ def employee_dashboard(request):
 		"core/employee_dashboard.html",
 		{
 			"form": form,
-			"import_form": import_form,
 			"can_import_recommendations": _is_hr_or_superuser(request.user),
 			"recommendations": Recommendation.objects.select_related("created_by").all()[:8],
 			"customer_cards": customer_cards,
 			"active_page": "employee",
+		},
+	)
+
+
+@employee_required
+@require_http_methods(["GET", "POST"])
+def recommendation_files_view(request):
+	import_form = RecommendationMultiImportForm()
+	selected_customer_id = request.GET.get("customer")
+	customers = User.objects.filter(role=User.Roles.CUSTOMER).order_by("first_name", "username")
+	selected_customer = customers.filter(pk=selected_customer_id).first() if selected_customer_id else customers.first()
+
+	if request.method == "POST":
+		action = None
+		try:
+			action = request.POST.get("action")
+		except RequestDataTooBig:
+			import_form = RecommendationMultiImportForm()
+			import_form.add_error("files", "Upload too large. Limit is 25 MB.")
+
+		if action == "upload_files":
+			if not _is_hr_or_superuser(request.user):
+				messages.error(request, "Only HR or superusers can upload recommendation files.")
+				return redirect("recommendation_files")
+
+			import_form = RecommendationMultiImportForm(request.POST, request.FILES)
+			if import_form.is_valid():
+				uploaded_files = import_form.cleaned_data["files"]
+				replace_existing = import_form.cleaned_data["replace_existing"]
+				total_imported = 0
+				created_records = []
+				for index, uploaded_file in enumerate(uploaded_files):
+					try:
+						imported_count = _import_recommendations_csv(
+							uploaded_file=uploaded_file,
+							created_by=request.user,
+							replace_existing=replace_existing and index == 0,
+						)
+					except ValueError as exc:
+						import_form.add_error("files", f"{uploaded_file.name}: {exc}")
+						break
+					except UnicodeDecodeError:
+						import_form.add_error("files", f"{uploaded_file.name}: file must be UTF-8 encoded.")
+						break
+					else:
+						uploaded_file.seek(0)
+						record = RecommendationDataFile(
+							file=uploaded_file,
+							original_name=uploaded_file.name,
+							imported_rows=imported_count,
+							uploaded_by=request.user,
+						)
+						record.save()
+						created_records.append(record)
+						total_imported += imported_count
+
+				if not import_form.errors:
+					messages.success(
+						request,
+						f"Processed {len(created_records)} file(s) and imported {total_imported} recommendations.",
+					)
+					return redirect("recommendation_files")
+
+		elif action == "delete_file":
+			if not _is_hr_or_superuser(request.user):
+				messages.error(request, "Only HR or superusers can delete recommendation files.")
+				return redirect("recommendation_files")
+			file_id = request.POST.get("file_id")
+			file_record = get_object_or_404(RecommendationDataFile, pk=file_id)
+			file_record.file.delete(save=False)
+			file_record.delete()
+			messages.success(request, "File deleted.")
+			return redirect("recommendation_files")
+
+		elif action == "bulk_delete_files":
+			if not _is_hr_or_superuser(request.user):
+				messages.error(request, "Only HR or superusers can delete recommendation files.")
+				return redirect("recommendation_files")
+			file_ids = request.POST.getlist("selected_files")
+			if not file_ids:
+				messages.error(request, "Select at least one file to delete.")
+				return redirect("recommendation_files")
+			files_to_delete = RecommendationDataFile.objects.filter(pk__in=file_ids)
+			deleted_count = 0
+			for file_record in files_to_delete:
+				file_record.file.delete(save=False)
+				file_record.delete()
+				deleted_count += 1
+			messages.success(request, f"Deleted {deleted_count} file(s).")
+			return redirect("recommendation_files")
+
+	selected_analytics = customer_analytics(selected_customer) if selected_customer else None
+	selected_recommendations = relevant_recommendations(selected_customer, limit=5) if selected_customer else []
+
+	return render(
+		request,
+		"core/recommendation_files.html",
+		{
+			"import_form": import_form,
+			"uploaded_files": RecommendationDataFile.objects.select_related("uploaded_by").all(),
+			"customers": customers,
+			"selected_customer": selected_customer,
+			"selected_analytics": selected_analytics,
+			"selected_recommendations": selected_recommendations,
+			"can_manage_files": _is_hr_or_superuser(request.user),
+			"general_recommendation_count": Recommendation.objects.count(),
+			"active_page": "recommendation_files",
 		},
 	)
 

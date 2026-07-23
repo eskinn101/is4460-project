@@ -1,0 +1,113 @@
+{% extends 'core/base.html' %}
+
+{% block title %}Moderation | Knowledge Files{% endblock %}
+{% block brand_subtitle %}Knowledge Files{% endblock %}
+
+{% block content %}
+<section class="page-header">
+  <span class="eyebrow">Generalized + Personalized Intelligence</span>
+  <h1>Machine knowledge files and customer blending.</h1>
+  <p>
+    General recommendation files are combined with each customer profile analytics to generate tailored coaching guidance.
+  </p>
+</section>
+
+<section class="grid-2">
+  <article class="panel">
+    <div class="kicker">General library</div>
+    <h2>Knowledge sources</h2>
+    <p><strong>{{ general_recommendation_count }}</strong> generalized recommendation records are currently available.</p>
+
+    {% if can_manage_files %}
+      <form method="post" enctype="multipart/form-data">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="upload_files">
+        <div>
+          <label for="{{ import_form.files.id_for_label }}">CSV or ZIP files</label>
+          {{ import_form.files }}
+          {% if import_form.files.errors %}
+            <small>{{ import_form.files.errors|join:", " }}</small>
+          {% endif %}
+        </div>
+        <div style="margin-top: 10px;">
+          <label for="{{ import_form.replace_existing.id_for_label }}" style="display: inline-flex; gap: 8px; align-items: center;">
+            {{ import_form.replace_existing }}
+            Replace recommendation library before first file
+          </label>
+        </div>
+        <button type="submit" style="margin-top: 12px;">Upload selected files</button>
+      </form>
+    {% else %}
+      <p>Read-only mode. HR and superusers can upload and delete files.</p>
+    {% endif %}
+  </article>
+
+  <article class="panel">
+    <div class="kicker">Customer blend preview</div>
+    <h2>Personalized output context</h2>
+    <form method="get">
+      <div>
+        <label for="customer">Customer</label>
+        <select id="customer" name="customer" onchange="this.form.submit()">
+          {% for customer in customers %}
+            <option value="{{ customer.id }}" {% if selected_customer and selected_customer.id == customer.id %}selected{% endif %}>
+              {{ customer.get_full_name|default:customer.username }}
+            </option>
+          {% endfor %}
+        </select>
+      </div>
+    </form>
+
+    {% if selected_customer and selected_analytics %}
+      <p><strong>Consistency score:</strong> {{ selected_analytics.consistency_score }}</p>
+      <p><strong>Focus:</strong> {{ selected_customer.health_profile.wellness_focus }}</p>
+      <p><strong>Hydration:</strong> {{ selected_analytics.water_oz }} oz • <strong>Sleep:</strong> {{ selected_analytics.sleep_hours }} hrs</p>
+      <div class="list-stack">
+        {% for recommendation in selected_recommendations %}
+          <article class="list-item">
+            <small>{{ recommendation.category }}</small>
+            <strong>{{ recommendation.title }}</strong>
+            <p>{{ recommendation.guidance }}</p>
+          </article>
+        {% empty %}
+          <p>No generalized recommendations are currently available.</p>
+        {% endfor %}
+      </div>
+    {% else %}
+      <p>No customer records available for preview.</p>
+    {% endif %}
+  </article>
+</section>
+
+<section class="panel" style="margin-top: 24px;">
+  <div class="kicker">Uploaded files</div>
+  <h2>Manage file history</h2>
+
+  {% if uploaded_files %}
+    <form method="post">
+      {% csrf_token %}
+      <div class="list-stack">
+        {% for file in uploaded_files %}
+          <article class="list-item">
+            <div style="display: flex; justify-content: space-between; gap: 16px; align-items: center;">
+              <div>
+                <small>{{ file.uploaded_at|date:"M d, Y H:i" }}{% if file.uploaded_by %} • {{ file.uploaded_by.get_full_name|default:file.uploaded_by.username }}{% endif %}</small>
+                <strong>{{ file.original_name }}</strong>
+                <p>{{ file.imported_rows }} recommendation rows imported</p>
+              </div>
+              {% if can_manage_files %}
+                <input type="checkbox" name="selected_files" value="{{ file.id }}" aria-label="Select {{ file.original_name }}">
+              {% endif %}
+            </div>
+          </article>
+        {% endfor %}
+      </div>
+      {% if can_manage_files %}
+        <button type="submit" name="action" value="bulk_delete_files" style="margin-top: 12px;">Delete selected files</button>
+      {% endif %}
+    </form>
+  {% else %}
+    <p>No uploaded files yet.</p>
+  {% endif %}
+</section>
+{% endblock %}

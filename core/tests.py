@@ -6,7 +6,7 @@ from django.urls import reverse
 import io
 import zipfile
 
-from .models import HealthGoal, HealthProfile, Recommendation, Workout
+from .models import HealthGoal, HealthProfile, Recommendation, RecommendationDataFile, Workout
 
 
 class AppStartupTests(TestCase):
@@ -541,14 +541,15 @@ class RecommendationImportTests(TestCase):
 		)
 
 		response = self.client.post(
-			reverse("employee_dashboard"),
-			{"action": "import_recommendations", "file": csv_file},
+			reverse("recommendation_files"),
+			{"action": "upload_files", "files": csv_file},
 			follow=True,
 		)
 
 		self.assertEqual(response.status_code, 200)
-		self.assertContains(response, "Only HR or superusers can import recommendation files.")
+		self.assertContains(response, "Only HR or superusers can upload recommendation files.")
 		self.assertEqual(Recommendation.objects.count(), initial_count)
+		self.assertEqual(RecommendationDataFile.objects.count(), 0)
 
 	def test_hr_can_import_recommendation_csv(self):
 		self.client.force_login(self.hr)
@@ -564,15 +565,18 @@ class RecommendationImportTests(TestCase):
 		)
 
 		response = self.client.post(
-			reverse("employee_dashboard"),
-			{"action": "import_recommendations", "file": csv_file},
+			reverse("recommendation_files"),
+			{"action": "upload_files", "files": csv_file},
 			follow=True,
 		)
 
 		self.assertEqual(response.status_code, 200)
-		self.assertContains(response, "Imported 2 recommendations from CSV.")
+		self.assertContains(response, "Processed 1 file(s) and imported 2 recommendations.")
 		self.assertEqual(Recommendation.objects.count(), initial_count + 2)
 		self.assertTrue(Recommendation.objects.filter(title="Hydration Reset", created_by=self.hr).exists())
+		record = RecommendationDataFile.objects.get()
+		self.assertEqual(record.original_name, "recommendations.csv")
+		self.assertEqual(record.imported_rows, 2)
 
 	def test_hr_replace_mode_overwrites_existing_recommendations(self):
 		Recommendation.objects.create(
@@ -591,17 +595,17 @@ class RecommendationImportTests(TestCase):
 		)
 
 		response = self.client.post(
-			reverse("employee_dashboard"),
+			reverse("recommendation_files"),
 			{
-				"action": "import_recommendations",
-				"file": csv_file,
+				"action": "upload_files",
+				"files": csv_file,
 				"replace_existing": "on",
 			},
 			follow=True,
 		)
 
 		self.assertEqual(response.status_code, 200)
-		self.assertContains(response, "Imported 1 recommendations from CSV.")
+		self.assertContains(response, "Processed 1 file(s) and imported 1 recommendations.")
 		self.assertEqual(Recommendation.objects.count(), 1)
 		self.assertTrue(Recommendation.objects.filter(title="New Wellness Plan").exists())
 
@@ -618,12 +622,38 @@ class RecommendationImportTests(TestCase):
 		zip_file = SimpleUploadedFile("recommendations.zip", buffer.read(), content_type="application/zip")
 
 		response = self.client.post(
-			reverse("employee_dashboard"),
-			{"action": "import_recommendations", "file": zip_file},
+			reverse("recommendation_files"),
+			{"action": "upload_files", "files": zip_file},
 			follow=True,
 		)
 
 		self.assertEqual(response.status_code, 200)
-		self.assertContains(response, "Imported 1 recommendations from CSV.")
+		self.assertContains(response, "Processed 1 file(s) and imported 1 recommendations.")
 		self.assertEqual(Recommendation.objects.count(), initial_count + 1)
 		self.assertTrue(Recommendation.objects.filter(title="Zip Wellness", created_by=self.hr).exists())
+
+	def test_hr_can_delete_multiple_uploaded_files(self):
+		self.client.force_login(self.hr)
+		first_file = SimpleUploadedFile(
+			"first.csv",
+			b"title,category,guidance\nFirst,Wellness,Stay hydrated\n",
+			content_type="text/csv",
+		)
+		second_file = SimpleUploadedFile(
+			"second.csv",
+			b"title,category,guidance\nSecond,Diet,Add protein\n",
+			content_type="text/csv",
+		)
+		self.client.post(reverse("recommendation_files"), {"action": "upload_files", "files": first_file}, follow=True)
+		self.client.post(reverse("recommendation_files"), {"action": "upload_files", "files": second_file}, follow=True)
+
+		file_ids = list(RecommendationDataFile.objects.values_list("id", flat=True))
+		response = self.client.post(
+			reverse("recommendation_files"),
+			{"action": "bulk_delete_files", "selected_files": file_ids},
+			follow=True,
+		)
+
+		self.assertEqual(response.status_code, 200)
+		self.assertContains(response, "Deleted 2 file(s).")
+		self.assertEqual(RecommendationDataFile.objects.count(), 0)

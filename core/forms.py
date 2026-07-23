@@ -137,6 +137,42 @@ class RecommendationImportForm(forms.Form):
         return uploaded_file
 
 
+class MultipleFileInput(forms.ClearableFileInput):
+    allow_multiple_selected = True
+
+
+class MultipleFileField(forms.FileField):
+    def clean(self, data, initial=None):
+        single_file_clean = super().clean
+        if isinstance(data, (list, tuple)):
+            return [single_file_clean(item, initial) for item in data]
+        return [single_file_clean(data, initial)]
+
+
+class RecommendationMultiImportForm(forms.Form):
+    files = MultipleFileField(
+        widget=MultipleFileInput(attrs={"multiple": True}),
+        help_text="Select one or multiple CSV/ZIP files.",
+    )
+    replace_existing = forms.BooleanField(
+        required=False,
+        initial=False,
+        help_text="Replace current recommendation library before importing the first file.",
+    )
+
+    def clean_files(self):
+        uploaded_files = self.cleaned_data["files"]
+        if not uploaded_files:
+            raise forms.ValidationError("Select at least one file to upload.")
+
+        for uploaded_file in uploaded_files:
+            file_name = uploaded_file.name.lower()
+            if not (file_name.endswith(".csv") or file_name.endswith(".zip")):
+                raise forms.ValidationError("All files must be CSV or ZIP.")
+
+        return uploaded_files
+
+
 class ChatForm(forms.Form):
     channel = forms.ChoiceField(choices=ChatMessage.Channels.choices, widget=forms.HiddenInput())
     message = forms.CharField(widget=forms.Textarea(attrs={"rows": 4}))

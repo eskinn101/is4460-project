@@ -97,6 +97,20 @@ class Recommendation(models.Model):
 		ordering = ["-created_at"]
 
 
+class RecommendationDataFile(models.Model):
+	file = models.FileField(upload_to="recommendation_uploads/")
+	original_name = models.CharField(max_length=255)
+	imported_rows = models.PositiveIntegerField(default=0)
+	uploaded_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name="uploaded_recommendation_files")
+	uploaded_at = models.DateTimeField(auto_now_add=True)
+
+	class Meta:
+		ordering = ["-uploaded_at", "-id"]
+
+	def __str__(self):
+		return self.original_name
+
+
 class MealEntry(models.Model):
 	class MealTimes(models.TextChoices):
 		BREAKFAST = "Breakfast", "Breakfast"
