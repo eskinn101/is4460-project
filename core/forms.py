@@ -5,7 +5,7 @@ from .models import ChatMessage, HealthProfile, MealEntry, Recommendation, User
 
 class LoginForm(forms.Form):
     role = forms.CharField(widget=forms.HiddenInput())
-    email = forms.EmailField()
+    email = forms.CharField(label="Email")
     password = forms.CharField(widget=forms.PasswordInput())
     fixed_role = None
 

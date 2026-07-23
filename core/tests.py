@@ -1,8 +1,105 @@
 from django.contrib.auth import get_user_model
+from django.core.management import call_command
 from django.test import TestCase
 from django.urls import reverse
 
 from .models import HealthGoal, HealthProfile, Recommendation
+
+
+class AppStartupTests(TestCase):
+	"""Guards against the app failing to boot (bad imports, missing migrations, broken URLs)."""
+
+	def test_system_check_passes(self):
+		call_command("check")
+
+	def test_no_missing_migrations(self):
+		try:
+			call_command("makemigrations", check=True, dry_run=True)
+		except SystemExit:
+			self.fail("Model changes are missing a migration file. Run `python manage.py makemigrations`.")
+
+	def test_home_page_loads_for_anonymous_visitor(self):
+		response = self.client.get(reverse("home"))
+
+		self.assertEqual(response.status_code, 200)
+		self.assertContains(response, "Continue as customer")
+		self.assertContains(response, "Continue as employee")
+
+
+class LoginFlowTests(TestCase):
+	"""Confirms the seeded customer, employee, and HR/superuser accounts can always log in."""
+
+	def setUp(self):
+		self.User = get_user_model()
+
+	def test_seeded_customer_can_log_in(self):
+		response = self.client.post(
+			reverse("home"),
+			{
+				"customer-role": self.User.Roles.CUSTOMER,
+				"customer-email": "jordan@moderation.app",
+				"customer-password": "customer-demo",
+			},
+		)
+
+		self.assertRedirects(response, reverse("customer_dashboard"))
+		self.assertTrue(response.wsgi_request.user.is_authenticated)
+
+	def test_seeded_employee_can_log_in(self):
+		response = self.client.post(
+			reverse("home"),
+			{
+				"employee-role": self.User.Roles.EMPLOYEE,
+				"employee-email": "coach@moderation.app",
+				"employee-password": "employee-demo",
+			},
+		)
+
+		self.assertRedirects(response, reverse("employee_dashboard"))
+		self.assertTrue(response.wsgi_request.user.is_authenticated)
+
+	def test_seeded_hr_superuser_can_log_in(self):
+		response = self.client.post(
+			reverse("home"),
+			{
+				"employee-role": self.User.Roles.HR,
+				"employee-email": "fake@gmail",
+				"employee-password": "fake12345",
+			},
+		)
+
+		self.assertRedirects(response, reverse("employee_dashboard"))
+		user = response.wsgi_request.user
+		self.assertTrue(user.is_authenticated)
+		self.assertTrue(user.is_superuser)
+
+	def test_wrong_password_is_rejected(self):
+		response = self.client.post(
+			reverse("home"),
+			{
+				"customer-role": self.User.Roles.CUSTOMER,
+				"customer-email": "jordan@moderation.app",
+				"customer-password": "not-the-right-password",
+			},
+		)
+
+		self.assertEqual(response.status_code, 200)
+		self.assertContains(response, "Invalid login details.")
+		self.assertFalse(response.wsgi_request.user.is_authenticated)
+
+	def test_customer_credentials_rejected_on_employee_form(self):
+		response = self.client.post(
+			reverse("home"),
+			{
+				"employee-role": self.User.Roles.EMPLOYEE,
+				"employee-email": "jordan@moderation.app",
+				"employee-password": "customer-demo",
+			},
+		)
+
+		self.assertEqual(response.status_code, 200)
+		self.assertContains(response, "Invalid login details.")
+		self.assertFalse(response.wsgi_request.user.is_authenticated)
 
 
 class CustomerSummaryApiTests(TestCase):
