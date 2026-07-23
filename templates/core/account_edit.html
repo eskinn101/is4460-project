@@ -6,7 +6,7 @@
 {% block content %}
 <section class="page-header">
   <span class="eyebrow">HR access</span>
-  <h1>Edit {{ target.get_full_name|default:target.username }}</h1>
+  <h1>Edit {{ account.get_full_name|default:account.username }}</h1>
   <p>Update this account's details or role. Changing the role adjusts staff and superuser access to match.</p>
 </section>
 

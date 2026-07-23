@@ -2,7 +2,7 @@ from django.contrib.auth import get_user_model
 from django.test import TestCase
 from django.urls import reverse
 
-from .models import HealthGoal, HealthProfile, Recommendation
+from .models import ChatMessage, HealthGoal, HealthProfile, Recommendation
 
 
 class CustomerSummaryApiTests(TestCase):
@@ -42,3 +42,25 @@ class CustomerSummaryApiTests(TestCase):
 		self.assertEqual(payload["goals"], ["Keep workouts regular"])
 		self.assertEqual(payload["recommendations"]["primary"]["title"], "Protein-forward breakfast")
 		self.assertIn("consistency_score", payload["analytics"])
+
+	def test_customer_chat_creates_goal_and_generates_machine_reply(self):
+		self.client.force_login(self.customer)
+		before_goals = self.customer.health_goals.count()
+
+		response = self.client.post(
+			reverse("chat"),
+			data={"chatbot-channel": "chatbot", "chatbot-message": "My goal is to gain muscle while losing fat this quarter."},
+		)
+
+		self.assertEqual(response.status_code, 302)
+		self.customer.refresh_from_db()
+		self.assertEqual(self.customer.health_goals.count(), before_goals + 1)
+		self.assertTrue(self.customer.health_goals.filter(title__icontains="gain muscle while losing fat").exists())
+
+		machine_reply = ChatMessage.objects.filter(
+			user=self.customer,
+			is_machine_generated=True,
+			channel=ChatMessage.Channels.CHATBOT,
+		).order_by("-id").first()
+		self.assertIsNotNone(machine_reply)
+		self.assertNotIn("You mentioned:", machine_reply.message)

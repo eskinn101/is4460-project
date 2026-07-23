@@ -13,7 +13,13 @@ Django website foundation for a health coaching platform focused on customer hea
 ## Seeded accounts
 
 - Customer: `jordan@moderation.app` / `customer-demo`
-- Employee: `coach@moderation.app` / `employee-demo`
+- Customer (muscle + fat-loss scenario): `riley.fit@moderation.app` / `customer-demo`
+- Customer (sleep + recovery scenario): `taylor.recover@moderation.app` / `customer-demo`
+- Customer (endurance scenario): `casey.endurance@moderation.app` / `customer-demo`
+- Employee coach: `coach@moderation.app` / `employee-demo`
+- HR admin: `fake@gmail` / `fake12345`
+
+Each seeded customer includes sample profile metrics, meal logs, goals, and starter chatbot prompts so behavior-policy and recommendation blending can be tested quickly.
 
 ## Optional AI setup
 

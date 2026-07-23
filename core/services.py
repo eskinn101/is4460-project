@@ -1,6 +1,13 @@
+import json
+import os
+import re
+from urllib.parse import urlencode
+from urllib.request import urlopen
+
 from django.utils import timezone
 
-from .models import ChatMessage, Recommendation
+from .ai import generate_json_completion
+from .models import BotBehaviorConfig, ChatMessage, CustomerBotBehaviorOverride, HealthGoal, Recommendation
 
 
 def customer_analytics(user):
@@ -64,15 +71,169 @@ def relevant_recommendations(user, limit=3):
     return primary
 
 
-def build_chat_response(user, channel, incoming_message):
+def _resolved_behavior_instructions(user, global_instructions=None, customer_override=None):
+    if global_instructions is None:
+        global_config, _ = BotBehaviorConfig.objects.get_or_create()
+        global_instructions = global_config.instructions
+
+    if customer_override is None:
+        override = CustomerBotBehaviorOverride.objects.filter(user=user).first()
+        customer_override = override.instructions if override else ""
+
+    behavior_parts = [global_instructions.strip()]
+    if customer_override and customer_override.strip():
+        behavior_parts.append(f"Customer-specific override: {customer_override.strip()}")
+    return "\n\n".join([part for part in behavior_parts if part])
+
+
+def _keyword_food_query(incoming_message):
+    lowered = (incoming_message or "").lower()
+    candidates = [
+        "chicken breast",
+        "greek yogurt",
+        "salmon",
+        "eggs",
+        "oats",
+        "brown rice",
+        "banana",
+        "avocado",
+    ]
+    for candidate in candidates:
+        if candidate in lowered:
+            return candidate
+    return None
+
+
+def _usda_food_hint(food_query):
+    if not food_query:
+        return None
+
+    api_key = os.getenv("FOOD_DATA_GOV")
+    if not api_key:
+        return None
+
+    params = urlencode({"query": food_query, "pageSize": 1, "api_key": api_key})
+    url = f"https://api.nal.usda.gov/fdc/v1/foods/search?{params}"
+
+    try:
+        with urlopen(url, timeout=5) as response:
+            payload = json.loads(response.read().decode("utf-8"))
+    except Exception:
+        return None
+
+    foods = payload.get("foods") or []
+    if not foods:
+        return None
+
+    top = foods[0]
+    nutrients = {item.get("nutrientName"): item.get("value") for item in top.get("foodNutrients", [])}
+    calories = nutrients.get("Energy")
+    protein = nutrients.get("Protein")
+    carbs = nutrients.get("Carbohydrate")
+    fat = nutrients.get("Total lipid (fat)")
+
+    parts = []
+    if calories is not None:
+        parts.append(f"{calories} kcal")
+    if protein is not None:
+        parts.append(f"{protein}g protein")
+    if carbs is not None:
+        parts.append(f"{carbs}g carbs")
+    if fat is not None:
+        parts.append(f"{fat}g fat")
+    if not parts:
+        return None
+    return f"USDA check for {food_query}: " + ", ".join(parts)
+
+
+def detect_goal_from_message(user, incoming_message):
+    text = (incoming_message or "").strip()
+    if not text:
+        return None
+
+    lowered = text.lower()
+    trigger_phrases = ["my goal is", "i want to", "i would like to", "i need to", "goal:", "my target is"]
+    if not any(phrase in lowered for phrase in trigger_phrases):
+        return None
+
+    cleaned = re.sub(r"\s+", " ", text).strip()
+    cleaned = re.sub(r"^[\-\*\s]+", "", cleaned)
+    if len(cleaned) > 180:
+        cleaned = cleaned[:180].rsplit(" ", 1)[0]
+
+    existing_titles = set(user.health_goals.values_list("title", flat=True))
+    if cleaned in existing_titles:
+        return None
+
+    next_sort = user.health_goals.count()
+    HealthGoal.objects.create(user=user, title=cleaned, sort_order=next_sort)
+    return cleaned
+
+
+def build_chat_response(user, channel, incoming_message, global_instructions=None, customer_override=None):
     analytics = customer_analytics(user)
     recommendation = analytics["primary_recommendation"]
     prefix = "From a coaching view" if channel == ChatMessage.Channels.COACH else "Based on your saved health data"
     guidance = recommendation.guidance if recommendation else "stay consistent with meals, movement, and recovery."
-    return (
-        f"{prefix}, your consistency score is {analytics['consistency_score']}. "
-        f"Top next step: {guidance} You mentioned: '{incoming_message[:90]}'."
+
+    behavior_instructions = _resolved_behavior_instructions(
+        user,
+        global_instructions=global_instructions,
+        customer_override=customer_override,
     )
+
+    system_prompt = (
+        "You are a health coaching assistant for a wellness app. "
+        "Follow the behavior instructions strictly when composing responses. "
+        "Return JSON with keys: summary, health_tip, reply. "
+        "Keep reply practical, safe, and under 120 words.\n\n"
+        f"Behavior instructions:\n{behavior_instructions}"
+    )
+    user_prompt = (
+        f"Channel: {channel}\n"
+        f"Customer consistency score: {analytics['consistency_score']}\n"
+        f"Hydration: {analytics['water_oz']} oz\n"
+        f"Sleep: {analytics['sleep_hours']} hours\n"
+        f"Steps: {analytics['steps']}\n"
+        f"Recommended next step: {guidance}\n"
+        f"Incoming message: {incoming_message}"
+    )
+    generated = generate_json_completion(system_prompt, user_prompt)
+    reply = (generated.get("reply") or "").strip() if isinstance(generated, dict) else ""
+    if reply:
+        return reply
+
+    focus_actions = []
+    if analytics["water_oz"] < 64:
+        focus_actions.append("Add 16-24 oz of water before lunch.")
+    if float(analytics["sleep_hours"]) < 7:
+        focus_actions.append("Set a fixed wind-down time tonight to protect 7+ hours of sleep.")
+    if analytics["steps"] < 8000:
+        focus_actions.append("Add one 15-minute walk after a meal today.")
+
+    recommendation_lines = []
+    for item in relevant_recommendations(user, limit=2):
+        recommendation_lines.append(f"{item.title}: {item.guidance}")
+
+    usda_hint = _usda_food_hint(_keyword_food_query(incoming_message))
+
+    if not focus_actions:
+        focus_actions.append("Keep your current routine steady and repeat what worked this week.")
+
+    lines = [
+        f"{prefix}, your current consistency score is {analytics['consistency_score']}.",
+        "Today\'s priority actions:",
+        f"1) {focus_actions[0]}",
+    ]
+    if len(focus_actions) > 1:
+        lines.append(f"2) {focus_actions[1]}")
+
+    if recommendation_lines:
+        lines.append(f"Recommendation library match: {recommendation_lines[0]}")
+    if usda_hint:
+        lines.append(usda_hint)
+
+    return " ".join(lines)
 
 
 def serialize_recommendation(recommendation):
