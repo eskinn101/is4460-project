@@ -1,5 +1,6 @@
 from django import forms
 from django.utils import timezone
+from urllib.parse import urlparse
 
 from .models import BotBehaviorConfig, ChatMessage, CustomerBotBehaviorOverride, HealthProfile, MealEntry, Recommendation, User, Workout
 
@@ -171,6 +172,44 @@ class RecommendationMultiImportForm(forms.Form):
                 raise forms.ValidationError("All files must be CSV or ZIP.")
 
         return uploaded_files
+
+
+class RecommendationRemoteImportForm(forms.Form):
+    source_path = forms.CharField(
+        required=False,
+        label="Server file path",
+        help_text="Example: /workspaces/is4460-project/data/recommendations.csv",
+    )
+    source_url = forms.URLField(
+        required=False,
+        label="Source URL",
+        help_text="Optional: direct URL to a CSV or ZIP file.",
+    )
+    replace_existing = forms.BooleanField(
+        required=False,
+        initial=False,
+        help_text="Replace current recommendation library before importing this source.",
+    )
+
+    def clean(self):
+        cleaned_data = super().clean()
+        source_path = (cleaned_data.get("source_path") or "").strip()
+        source_url = (cleaned_data.get("source_url") or "").strip()
+
+        if bool(source_path) == bool(source_url):
+            raise forms.ValidationError("Provide either a server file path or a source URL.")
+
+        candidate = source_path
+        if source_url:
+            candidate = urlparse(source_url).path
+
+        lowered = candidate.lower()
+        if not (lowered.endswith(".csv") or lowered.endswith(".zip")):
+            raise forms.ValidationError("Source must point to a CSV or ZIP file.")
+
+        cleaned_data["source_path"] = source_path
+        cleaned_data["source_url"] = source_url
+        return cleaned_data
 
 
 class BotBehaviorConfigForm(forms.ModelForm):

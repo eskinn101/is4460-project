@@ -1,54 +1,13 @@
-import json
-
 from django.utils import timezone
 
-from .ai import generate_json_completion
-from .models import BotBehaviorConfig, ChatMessage, CustomerBotBehaviorOverride, Recommendation
-
-
-def bot_behavior_instructions(user=None, global_instructions=None, customer_override=None):
-    config = BotBehaviorConfig.objects.order_by("id").first()
-    resolved_global = global_instructions if global_instructions is not None else (config.instructions if config else "")
-    if not resolved_global or not resolved_global.strip():
-        resolved_global = (
-            "Keep guidance practical, supportive, and non-judgmental. "
-            "Use only the supplied customer profile and recommendation data. "
-            "Do not provide medical diagnosis or treatment advice."
-        )
-
-    override_text = customer_override
-    if override_text is None and user is not None and getattr(user, "role", None) == "customer":
-        override = CustomerBotBehaviorOverride.objects.filter(user=user).first()
-        override_text = override.instructions if override else ""
-
-    if override_text and override_text.strip():
-        return (
-            f"{resolved_global.strip()}\n"
-            f"Customer-specific behavior instructions: {override_text.strip()}"
-        )
-
-    return resolved_global.strip()
+from .models import ChatMessage, Recommendation
 
 
 def customer_analytics(user):
-    profile = getattr(user, "health_profile", None)
+    profile = user.health_profile
     today = timezone.localdate()
     today_meals = user.meal_entries.filter(consumed_at__date=today)
     total_calories = sum(meal.calories for meal in today_meals)
-
-    if profile is None:
-        recommendation = Recommendation.objects.first()
-        return {
-            "steps": 0,
-            "water_oz": 0,
-            "sleep_hours": 0,
-            "workouts_per_week": 0,
-            "consistency_score": 0,
-            "total_calories": total_calories,
-            "goal_count": 0,
-            "insights": ["No customer health profile is attached to this account yet."],
-            "primary_recommendation": recommendation,
-        }
 
     score = min(
         100,
@@ -88,9 +47,7 @@ def customer_analytics(user):
 
 
 def preferred_recommendation_category(user):
-    profile = getattr(user, "health_profile", None)
-    if profile is None:
-        return Recommendation.Categories.WELLNESS
+    profile = user.health_profile
     if float(profile.sleep_hours) < 7 or profile.water_oz < 64:
         return Recommendation.Categories.WELLNESS
     if profile.steps < 8000 or profile.workouts_per_week < 3:
@@ -107,146 +64,10 @@ def relevant_recommendations(user, limit=3):
     return primary
 
 
-def _default_partner_matches(partners):
-    ranked_partners = sorted(partners, key=lambda partner: partner.get("match_score", 0), reverse=True)[:3]
-    return [
-        {
-            "slug": partner.get("slug"),
-            "name": partner.get("name"),
-            "reason": partner.get("recommendation_reason", "Matches your current activity and nutrition goals."),
-        }
-        for partner in ranked_partners
-    ]
-
-
-def build_ai_guidance(
-    user,
-    analytics=None,
-    recommendations=None,
-    meals=None,
-    partners=None,
-    incoming_message=None,
-    purpose="dashboard",
-    behavior_instruction_override=None,
-):
-    analytics = analytics or customer_analytics(user)
-    recommendations = recommendations or relevant_recommendations(user)
-    meals = meals or list(user.meal_entries.order_by("-consumed_at")[:5])
-    partners = partners or []
-
-    primary_recommendation = analytics["primary_recommendation"]
-    resolved_behavior = behavior_instruction_override or bot_behavior_instructions(user=user)
-
-    payload = {
-        "purpose": purpose,
-        "behavior_instructions": resolved_behavior,
-        "profile": {
-            "consistency_score": analytics["consistency_score"],
-            "total_calories": analytics["total_calories"],
-            "goal_count": analytics["goal_count"],
-            "steps": analytics["steps"],
-            "water_oz": analytics["water_oz"],
-            "sleep_hours": float(analytics["sleep_hours"]),
-            "workouts_per_week": analytics["workouts_per_week"],
-        },
-        "insights": analytics["insights"],
-        "primary_recommendation": {
-            "title": primary_recommendation.title if primary_recommendation else None,
-            "category": primary_recommendation.category if primary_recommendation else None,
-            "guidance": primary_recommendation.guidance if primary_recommendation else None,
-            "analytics_focus": primary_recommendation.analytics_focus if primary_recommendation else None,
-        },
-        "secondary_recommendations": [
-            {
-                "title": recommendation.title,
-                "category": recommendation.category,
-                "guidance": recommendation.guidance,
-                "analytics_focus": recommendation.analytics_focus,
-            }
-            for recommendation in recommendations
-        ],
-        "recent_meals": [
-            {
-                "meal_name": meal.meal_name,
-                "time_of_day": meal.time_of_day,
-                "calories": meal.calories,
-                "notes": meal.notes,
-            }
-            for meal in meals
-        ],
-        "partners": [
-            {
-                "slug": partner.get("slug"),
-                "name": partner.get("name"),
-                "category": partner.get("category"),
-                "match_score": partner.get("match_score"),
-                "recommendation_reason": partner.get("recommendation_reason"),
-            }
-            for partner in partners
-        ],
-        "incoming_message": incoming_message,
-    }
-
-    system_prompt = (
-        "You are a wellness assistant for a prototype health coaching app. "
-        f"Follow this behavior policy exactly: {resolved_behavior} "
-        "Return concise valid JSON only. Do not include markdown or commentary."
-    )
-    user_prompt = (
-        "Generate personalized guidance from this JSON input. "
-        "Return keys: summary, meal_tip, health_tip, partner_tip, chat_reply, partner_matches. "
-        "partner_matches must be a list of objects with slug, name, and reason.\n\n"
-        f"{json.dumps(payload)}"
-    )
-
-    ai_result = generate_json_completion(system_prompt, user_prompt)
-    partner_matches = ai_result.get("partner_matches") if isinstance(ai_result, dict) else []
-    if not isinstance(partner_matches, list) or not partner_matches:
-        partner_matches = _default_partner_matches(partners)
-
-    summary = ai_result.get("summary") if isinstance(ai_result, dict) else ""
-    meal_tip = ai_result.get("meal_tip") if isinstance(ai_result, dict) else ""
-    health_tip = ai_result.get("health_tip") if isinstance(ai_result, dict) else ""
-    partner_tip = ai_result.get("partner_tip") if isinstance(ai_result, dict) else ""
-    chat_reply = ai_result.get("chat_reply") if isinstance(ai_result, dict) else ""
-
-    if not summary:
-        summary = f"Your consistency score is {analytics['consistency_score']}."
-    if not meal_tip:
-        meal_tip = primary_recommendation.guidance if primary_recommendation else "Keep meals balanced with protein, fiber, and hydration."
-    if not health_tip:
-        health_tip = analytics["insights"][0]
-    if not partner_tip:
-        partner_tip = "Match partners to the highest relevance scores and the habits you want to reinforce."
-    if not chat_reply:
-        prefix = "From a coaching view" if purpose == "chat" else "Based on your saved health data"
-        guidance = primary_recommendation.guidance if primary_recommendation else "stay consistent with meals, movement, and recovery."
-        if incoming_message:
-            chat_reply = (
-                f"{prefix}, your consistency score is {analytics['consistency_score']}. "
-                f"Top next step: {guidance} You mentioned: '{incoming_message[:90]}'."
-            )
-        else:
-            chat_reply = f"{prefix}, your next step is {guidance}"
-
-    return {
-        "summary": summary,
-        "meal_tip": meal_tip,
-        "health_tip": health_tip,
-        "partner_tip": partner_tip,
-        "chat_reply": chat_reply,
-        "partner_matches": partner_matches,
-    }
-
-
 def build_chat_response(user, channel, incoming_message):
     analytics = customer_analytics(user)
-    ai_guidance = build_ai_guidance(user, analytics=analytics, incoming_message=incoming_message, purpose="chat")
-    prefix = "From a coaching view" if channel == ChatMessage.Channels.COACH else "Based on your saved health data"
-    if ai_guidance.get("chat_reply"):
-        return ai_guidance["chat_reply"]
-
     recommendation = analytics["primary_recommendation"]
+    prefix = "From a coaching view" if channel == ChatMessage.Channels.COACH else "Based on your saved health data"
     guidance = recommendation.guidance if recommendation else "stay consistent with meals, movement, and recovery."
     return (
         f"{prefix}, your consistency score is {analytics['consistency_score']}. "
@@ -270,17 +91,15 @@ def serialize_recommendation(recommendation):
 def customer_summary_payload(user):
     analytics = customer_analytics(user)
     goals = list(user.health_goals.values_list("title", flat=True))
-    ai_guidance = build_ai_guidance(user, analytics=analytics, recommendations=relevant_recommendations(user), purpose="summary")
-    profile = getattr(user, "health_profile", None)
 
     return {
         "profile": {
-            "daily_recommendation": profile.daily_recommendation if profile else "",
-            "wellness_focus": profile.wellness_focus if profile else "",
-            "steps": profile.steps if profile else 0,
-            "water_oz": profile.water_oz if profile else 0,
-            "sleep_hours": float(profile.sleep_hours) if profile else 0,
-            "workouts_per_week": profile.workouts_per_week if profile else 0,
+            "daily_recommendation": user.health_profile.daily_recommendation,
+            "wellness_focus": user.health_profile.wellness_focus,
+            "steps": user.health_profile.steps,
+            "water_oz": user.health_profile.water_oz,
+            "sleep_hours": float(user.health_profile.sleep_hours),
+            "workouts_per_week": user.health_profile.workouts_per_week,
         },
         "goals": goals,
         "analytics": {
@@ -297,5 +116,4 @@ def customer_summary_payload(user):
             "primary": serialize_recommendation(analytics["primary_recommendation"]),
             "relevant": [serialize_recommendation(item) for item in relevant_recommendations(user)],
         },
-        "ai_guidance": ai_guidance,
     }

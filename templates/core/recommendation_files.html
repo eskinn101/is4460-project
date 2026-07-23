@@ -37,6 +37,32 @@
         </div>
         <button type="submit" style="margin-top: 12px;">Upload selected files</button>
       </form>
+
+      <hr style="margin: 20px 0; border: 0; border-top: 1px solid rgba(13, 26, 38, 0.12);">
+      <h3 style="margin: 0 0 8px 0;">Bypass browser upload (no 413)</h3>
+      <p style="margin-top: 0;">Import directly from a server file path or a source URL. This avoids browser/proxy file-size limits.</p>
+      <form method="post">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="import_remote_source">
+        <div>
+          <label for="{{ remote_import_form.source_path.id_for_label }}">Server file path</label>
+          {{ remote_import_form.source_path }}
+        </div>
+        <div style="margin-top: 8px;">
+          <label for="{{ remote_import_form.source_url.id_for_label }}">Source URL</label>
+          {{ remote_import_form.source_url }}
+        </div>
+        <div style="margin-top: 8px;">
+          <label for="{{ remote_import_form.replace_existing.id_for_label }}" style="display: inline-flex; gap: 8px; align-items: center;">
+            {{ remote_import_form.replace_existing }}
+            Replace recommendation library before import
+          </label>
+        </div>
+        {% if remote_import_form.non_field_errors %}
+          <small>{{ remote_import_form.non_field_errors|join:", " }}</small>
+        {% endif %}
+        <button type="submit" style="margin-top: 12px;">Import from path/URL</button>
+      </form>
     {% else %}
       <p>Read-only mode. HR and superusers can upload and delete files.</p>
     {% endif %}
