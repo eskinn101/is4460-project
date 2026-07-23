@@ -19,6 +19,7 @@ Django website foundation for a health coaching platform focused on customer hea
 
 Set one of the following environment variables to enable API-backed guidance:
 
+- `GEMNI_API_KEY` or `GEMINI_API_KEY` if that is the name already used in your repo
 - `OPENAI_API_KEY` or `MODERATION_AI_API_KEY`
 - Optional: `OPENAI_BASE_URL` or `MODERATION_AI_BASE_URL` for OpenAI-compatible providers
 - Optional: `MODERATION_AI_MODEL` to override the default model name

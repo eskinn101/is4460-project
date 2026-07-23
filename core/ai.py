@@ -9,7 +9,12 @@ from openai import OpenAI
 
 
 def _api_key() -> str | None:
-	return os.getenv("MODERATION_AI_API_KEY") or os.getenv("OPENAI_API_KEY")
+	return (
+		os.getenv("GEMNI_API_KEY")
+		or os.getenv("GEMINI_API_KEY")
+		or os.getenv("MODERATION_AI_API_KEY")
+		or os.getenv("OPENAI_API_KEY")
+	)
 
 
 def _base_url() -> str | None:
