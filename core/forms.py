@@ -7,6 +7,29 @@ class LoginForm(forms.Form):
     role = forms.CharField(widget=forms.HiddenInput())
     email = forms.EmailField()
     password = forms.CharField(widget=forms.PasswordInput())
+    fixed_role = None
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        if self.fixed_role:
+            self.fields["role"].initial = self.fixed_role
+
+    def clean(self):
+        cleaned_data = super().clean()
+        role = cleaned_data.get("role")
+
+        if self.fixed_role and role and role != self.fixed_role:
+            self.add_error("role", "Invalid role for this form.")
+
+        return cleaned_data
+
+
+class CustomerLoginForm(LoginForm):
+	fixed_role = User.Roles.CUSTOMER
+
+
+class EmployeeLoginForm(LoginForm):
+	role = forms.ChoiceField(choices=User.Roles.employee_choices())
 
 
 class AccountRegistrationForm(forms.Form):
@@ -37,7 +60,7 @@ class AccountRegistrationForm(forms.Form):
         password = cleaned_data.get("password")
         confirm_password = cleaned_data.get("confirm_password")
 
-        if account_type == User.Roles.EMPLOYEE and not date_of_birth:
+        if account_type in User.Roles.employee_roles() and not date_of_birth:
             self.add_error("date_of_birth", "Birthday is required for employee accounts.")
 
         if self.fixed_account_type and account_type and account_type != self.fixed_account_type:
@@ -54,7 +77,7 @@ class CustomerRegistrationForm(AccountRegistrationForm):
 
 
 class EmployeeRegistrationForm(AccountRegistrationForm):
-    fixed_account_type = User.Roles.EMPLOYEE
+    account_type = forms.ChoiceField(choices=User.Roles.employee_choices())
 
 
 class ProfileForm(forms.ModelForm):

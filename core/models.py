@@ -6,7 +6,16 @@ from django.utils import timezone
 class User(AbstractUser):
 	class Roles(models.TextChoices):
 		CUSTOMER = "customer", "Customer"
-		EMPLOYEE = "employee", "Employee"
+		EMPLOYEE = "employee", "Coach"
+		HR = "hr", "Human Resources"
+
+		@classmethod
+		def employee_roles(cls):
+			return (cls.EMPLOYEE, cls.HR)
+
+		@classmethod
+		def employee_choices(cls):
+			return ((cls.EMPLOYEE, "Coach"), (cls.HR, "Human Resources"))
 
 	email = models.EmailField(unique=True)
 	role = models.CharField(max_length=20, choices=Roles.choices, default=Roles.CUSTOMER)

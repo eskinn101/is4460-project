@@ -7,7 +7,7 @@ from django.http import Http404, HttpResponseForbidden, JsonResponse
 from django.shortcuts import redirect, render
 from django.views.decorators.http import require_http_methods
 
-from .forms import ChatForm, CustomerRegistrationForm, EmployeeRegistrationForm, HealthProfileForm, LoginForm, MealEntryForm, ProfileForm, RecommendationForm
+from .forms import ChatForm, CustomerLoginForm, CustomerRegistrationForm, EmployeeLoginForm, EmployeeRegistrationForm, HealthProfileForm, MealEntryForm, ProfileForm, RecommendationForm
 from .models import ChatMessage, HealthGoal, HealthProfile, Recommendation, User
 from .services import build_chat_response, customer_analytics, customer_summary_payload, relevant_recommendations
 
@@ -146,14 +146,14 @@ NEARBY_DATA = [
 
 def home(request):
 	if request.user.is_authenticated:
-		return redirect("employee_dashboard" if request.user.role == User.Roles.EMPLOYEE else "customer_dashboard")
+		return redirect("employee_dashboard" if request.user.is_superuser or request.user.role in User.Roles.employee_roles() else "customer_dashboard")
 
-	customer_form = LoginForm(prefix="customer", initial={"role": User.Roles.CUSTOMER})
-	employee_form = LoginForm(prefix="employee", initial={"role": User.Roles.EMPLOYEE})
+	customer_form = CustomerLoginForm(prefix="customer")
+	employee_form = EmployeeLoginForm(prefix="employee", initial={"role": User.Roles.EMPLOYEE})
 
 	if request.method == "POST":
 		prefix = "employee" if "employee-email" in request.POST else "customer"
-		form = LoginForm(request.POST, prefix=prefix)
+		form = EmployeeLoginForm(request.POST, prefix=prefix) if prefix == "employee" else CustomerLoginForm(request.POST, prefix=prefix)
 		customer_form = form if prefix == "customer" else customer_form
 		employee_form = form if prefix == "employee" else employee_form
 
@@ -162,9 +162,9 @@ def home(request):
 			password = form.cleaned_data["password"]
 			user = authenticate(request, username=email, password=password)
 
-			if user and user.role == form.cleaned_data["role"]:
+			if user and (user.role == form.cleaned_data["role"] or (user.is_superuser and form.cleaned_data["role"] == User.Roles.HR)):
 				login(request, user)
-				return redirect("employee_dashboard" if user.role == User.Roles.EMPLOYEE else "customer_dashboard")
+				return redirect("employee_dashboard" if user.is_superuser or user.role in User.Roles.employee_roles() else "customer_dashboard")
 
 			messages.error(request, "Invalid login details.")
 
@@ -203,7 +203,7 @@ def account_view(request):
 
 	if request.method == "POST":
 		registration_form = request.POST.get("registration_form")
-		if registration_form == User.Roles.EMPLOYEE or (registration_form is None and "employee-account_type" in request.POST):
+		if registration_form in User.Roles.employee_roles() or (registration_form is None and "employee-account_type" in request.POST):
 			form = EmployeeRegistrationForm(request.POST, prefix="employee")
 			employee_form = form
 		else:
@@ -224,6 +224,10 @@ def account_view(request):
 				role=role,
 			)
 
+			user.is_staff = role in User.Roles.employee_roles()
+			user.is_superuser = role == User.Roles.HR
+			user.save(update_fields=["is_staff", "is_superuser"])
+
 			if role == User.Roles.CUSTOMER:
 				HealthProfile.objects.get_or_create(
 					user=user,
@@ -238,8 +242,8 @@ def account_view(request):
 				)
 
 			login(request, user)
-			messages.success(request, f"{role.title()} account created.")
-			return redirect("employee_dashboard" if role == User.Roles.EMPLOYEE else "customer_dashboard")
+			messages.success(request, f"{dict(User.Roles.choices).get(role, role.title())} account created.")
+			return redirect("employee_dashboard" if role in User.Roles.employee_roles() else "customer_dashboard")
 
 	return render(
 		request,
@@ -261,7 +265,7 @@ def employee_required(view_func):
 	@wraps(view_func)
 	@login_required
 	def wrapped(request, *args, **kwargs):
-		if request.user.role != User.Roles.EMPLOYEE:
+		if not (request.user.is_superuser or request.user.role in User.Roles.employee_roles()):
 			return HttpResponseForbidden("Employee access required")
 		return view_func(request, *args, **kwargs)
 
@@ -272,6 +276,8 @@ def customer_required(view_func):
 	@wraps(view_func)
 	@login_required
 	def wrapped(request, *args, **kwargs):
+		if request.user.is_superuser:
+			return view_func(request, *args, **kwargs)
 		if request.user.role != User.Roles.CUSTOMER:
 			return redirect("employee_dashboard")
 		return view_func(request, *args, **kwargs)

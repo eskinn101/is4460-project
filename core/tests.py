@@ -84,6 +84,30 @@ class AccountPageRegistrationTests(TestCase):
 		self.assertTrue(self.User.objects.filter(email="newemployee@example.com", role=self.User.Roles.EMPLOYEE).exists())
 		employee = self.User.objects.get(email="newemployee@example.com", role=self.User.Roles.EMPLOYEE)
 		self.assertEqual(str(employee.date_of_birth), "1992-08-14")
+		self.assertTrue(employee.is_staff)
+		self.assertFalse(employee.is_superuser)
+
+	def test_hr_registration_creates_superuser_and_redirects_to_employee_dashboard(self):
+		response = self.client.post(
+			reverse("account"),
+			{
+				"employee-account_type": self.User.Roles.HR,
+				"employee-first_name": "Casey",
+				"employee-last_name": "Rivera",
+				"employee-email": "hrnew@example.com",
+				"employee-date_of_birth": "1988-02-11",
+				"employee-password": "strong-pass-123",
+				"employee-confirm_password": "strong-pass-123",
+			},
+		)
+
+		self.assertEqual(response.status_code, 302)
+		self.assertRedirects(response, reverse("employee_dashboard"))
+		self.assertTrue(self.User.objects.filter(email="hrnew@example.com", role=self.User.Roles.HR).exists())
+		hr = self.User.objects.get(email="hrnew@example.com", role=self.User.Roles.HR)
+		self.assertEqual(str(hr.date_of_birth), "1988-02-11")
+		self.assertTrue(hr.is_staff)
+		self.assertTrue(hr.is_superuser)
 
 	def test_employee_registration_requires_birthday(self):
 		response = self.client.post(
@@ -101,6 +125,21 @@ class AccountPageRegistrationTests(TestCase):
 		self.assertEqual(response.status_code, 200)
 		self.assertContains(response, "Birthday is required for employee accounts.")
 		self.assertFalse(self.User.objects.filter(email="employeewithoutdob@example.com").exists())
+
+	def test_hr_can_access_customer_and_employee_pages(self):
+		hr = self.User.objects.create_user(
+			username="hr-access@example.com",
+			email="hr-access@example.com",
+			password="test-pass-123",
+			role=self.User.Roles.HR,
+			is_staff=True,
+			is_superuser=True,
+		)
+
+		self.client.force_login(hr)
+
+		self.assertEqual(self.client.get(reverse("employee_dashboard")).status_code, 200)
+		self.assertEqual(self.client.get(reverse("wellness_partners")).status_code, 200)
 
 
 class WellnessPartnersPageTests(TestCase):

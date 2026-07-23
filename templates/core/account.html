@@ -61,7 +61,10 @@
     </div>
     <form method="post">
       {% csrf_token %}
-      {{ employee_form.account_type }}
+      <div>
+        <label for="{{ employee_form.account_type.id_for_label }}">Employee type</label>
+        {{ employee_form.account_type }}
+      </div>
       {% if employee_form.non_field_errors %}
         <div class="notice">{{ employee_form.non_field_errors }}</div>
       {% endif %}

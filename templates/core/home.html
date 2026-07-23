@@ -96,7 +96,10 @@
     </div>
     <form method="post">
       {% csrf_token %}
-      {{ employee_form.role }}
+      <div>
+        <label for="{{ employee_form.role.id_for_label }}">Employee type</label>
+        {{ employee_form.role }}
+      </div>
       <div>
         <label for="{{ employee_form.email.id_for_label }}">Email</label>
         {{ employee_form.email }}
@@ -105,7 +108,7 @@
         <label for="{{ employee_form.password.id_for_label }}">Password</label>
         {{ employee_form.password }}
       </div>
-      <p>Seeded login: coach@moderation.app / employee-demo</p>
+      <p>Seeded logins: coach@moderation.app / employee-demo or hr@moderation.app / hr-demo</p>
       <button type="submit">Continue as employee</button>
     </form>
   </article>
