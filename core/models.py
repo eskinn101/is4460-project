@@ -28,6 +28,38 @@ class User(AbstractUser):
 		return self.get_full_name() or self.username
 
 
+class Workout(models.Model):
+	class WorkoutTypes(models.TextChoices):
+		WALKING = "Walking", "Walking"
+		RUNNING = "Running", "Running"
+		STRENGTH_TRAINING = "Strength Training", "Strength Training"
+		CYCLING = "Cycling", "Cycling"
+		SWIMMING = "Swimming", "Swimming"
+		YOGA = "Yoga", "Yoga"
+		HIIT = "HIIT", "HIIT"
+		SPORTS = "Sports", "Sports"
+		OTHER = "Other", "Other"
+
+	class IntensityChoices(models.TextChoices):
+		LIGHT = "Light", "Light"
+		MODERATE = "Moderate", "Moderate"
+		HIGH = "High", "High"
+
+	user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="workouts")
+	workout_type = models.CharField(max_length=40, choices=WorkoutTypes.choices)
+	duration_minutes = models.PositiveIntegerField()
+	workout_date = models.DateField(default=timezone.localdate)
+	intensity = models.CharField(max_length=20, choices=IntensityChoices.choices)
+	notes = models.TextField(blank=True)
+	created_at = models.DateTimeField(auto_now_add=True)
+
+	class Meta:
+		ordering = ["-workout_date", "-created_at"]
+
+	def __str__(self):
+		return f"{self.workout_type} for {self.duration_minutes} minutes"
+
+
 class HealthProfile(models.Model):
 	user = models.OneToOneField(User, on_delete=models.CASCADE, related_name="health_profile")
 	daily_recommendation = models.TextField()

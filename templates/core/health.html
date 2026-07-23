@@ -101,4 +101,102 @@
     {% endfor %}
   </div>
 </section>
+
+<section class="panel" style="margin-top: 24px;">
+  <div class="kicker">Fitness Tracking</div>
+  <h2>Log and review your weekly activity.</h2>
+  <p>Use this simple log to capture workouts, review recent activity, and keep weekly progress visible.</p>
+  <div class="fitness-grid" style="margin-top: 20px;">
+    <article class="panel fitness-card">
+      <div class="kicker">Log a Workout</div>
+      <h3>Log a Workout</h3>
+      <p>Record your activity to monitor your weekly fitness progress.</p>
+      <form method="post" action="{% url 'workout_create' %}">
+        {% csrf_token %}
+        <input type="hidden" name="workout_submit" value="1" />
+        <div>
+          <label for="{{ workout_form.workout_type.id_for_label }}">Workout type</label>
+          {{ workout_form.workout_type }}
+          {% if workout_form.workout_type.errors %}
+            <div class="form-error">{{ workout_form.workout_type.errors|join:", " }}</div>
+          {% endif %}
+        </div>
+        <div class="grid-2">
+          <div>
+            <label for="{{ workout_form.workout_date.id_for_label }}">Date</label>
+            {{ workout_form.workout_date }}
+            {% if workout_form.workout_date.errors %}
+              <div class="form-error">{{ workout_form.workout_date.errors|join:", " }}</div>
+            {% endif %}
+          </div>
+          <div>
+            <label for="{{ workout_form.duration_minutes.id_for_label }}">Duration (minutes)</label>
+            {{ workout_form.duration_minutes }}
+            {% if workout_form.duration_minutes.errors %}
+              <div class="form-error">{{ workout_form.duration_minutes.errors|join:", " }}</div>
+            {% endif %}
+          </div>
+        </div>
+        <div>
+          <label for="{{ workout_form.intensity.id_for_label }}">Intensity</label>
+          {{ workout_form.intensity }}
+          {% if workout_form.intensity.errors %}
+            <div class="form-error">{{ workout_form.intensity.errors|join:", " }}</div>
+          {% endif %}
+        </div>
+        <div>
+          <label for="{{ workout_form.notes.id_for_label }}">Notes</label>
+          {{ workout_form.notes }}
+          {% if workout_form.notes.errors %}
+            <div class="form-error">{{ workout_form.notes.errors|join:", " }}</div>
+          {% endif %}
+        </div>
+        <button type="submit">Save Workout</button>
+      </form>
+    </article>
+
+    <article class="panel fitness-card">
+      <div class="kicker">This Week</div>
+      <h3>This Week</h3>
+      <div class="list-stack">
+        <article class="list-item"><strong>{{ weekly_workout_count }} workouts completed</strong><p>Based on your logged activity records.</p></article>
+        <article class="list-item"><strong>{{ weekly_active_minutes }} active minutes</strong><p>Collected from your recent workouts.</p></article>
+        {% if most_common_workout_type %}
+          <article class="list-item"><strong>Most common activity: {{ most_common_workout_type }}</strong><p>Tracked most often in the current week.</p></article>
+        {% endif %}
+        {% if weekly_goal is not None %}
+          <article class="list-item"><strong>Weekly goal progress: {{ weekly_workout_count }} / {{ weekly_goal }}</strong><p>Your current weekly target from your health profile.</p></article>
+        {% endif %}
+      </div>
+    </article>
+  </div>
+</section>
+
+<section class="panel" style="margin-top: 24px;">
+  <div class="kicker">Recent Workouts</div>
+  <h2>Recent Workouts</h2>
+  {% if recent_workouts %}
+    <div class="list-stack">
+      {% for workout in recent_workouts %}
+        <article class="list-item workout-item">
+          <div class="split-header">
+            <div>
+              <strong>{{ workout.workout_type }}</strong>
+              <p>{{ workout.workout_date|date:"F j, Y" }} · {{ workout.duration_minutes }} minutes · {{ workout.intensity }}</p>
+              {% if workout.notes %}
+                <p>{{ workout.notes }}</p>
+              {% endif %}
+            </div>
+            <form method="post" action="{% url 'workout_delete' workout.pk %}" onsubmit="return confirm('Delete this workout?');">
+              {% csrf_token %}
+              <button type="submit" class="secondary">Delete</button>
+            </form>
+          </div>
+        </article>
+      {% endfor %}
+    </div>
+  {% else %}
+    <div class="list-item"><p>No workouts logged yet. Add your first workout above to begin tracking your activity.</p></div>
+  {% endif %}
+</section>
 {% endblock %}

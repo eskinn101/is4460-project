@@ -1,6 +1,7 @@
 from django import forms
+from django.utils import timezone
 
-from .models import ChatMessage, HealthProfile, MealEntry, Recommendation, User
+from .models import ChatMessage, HealthProfile, MealEntry, Recommendation, User, Workout
 
 
 class LoginForm(forms.Form):
@@ -129,3 +130,24 @@ class MealEntryForm(forms.ModelForm):
         widgets = {
             "notes": forms.Textarea(attrs={"rows": 4}),
         }
+
+
+class WorkoutForm(forms.ModelForm):
+    class Meta:
+        model = Workout
+        fields = ["workout_type", "workout_date", "duration_minutes", "intensity", "notes"]
+        widgets = {
+            "workout_date": forms.DateInput(attrs={"type": "date"}),
+            "notes": forms.Textarea(attrs={"rows": 4}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        if not self.data and not self.is_bound:
+            self.fields["workout_date"].initial = timezone.localdate()
+
+    def clean_duration_minutes(self):
+        duration_minutes = self.cleaned_data.get("duration_minutes")
+        if duration_minutes is not None and duration_minutes <= 0:
+            raise forms.ValidationError("Duration must be greater than 0.")
+        return duration_minutes

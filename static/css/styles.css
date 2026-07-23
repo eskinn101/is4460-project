@@ -284,6 +284,31 @@ form {
   gap: 14px;
 }
 
+.fitness-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20px;
+}
+
+.fitness-card {
+  display: grid;
+  gap: 12px;
+}
+
+.form-error {
+  color: #a33c2f;
+  font-size: 0.86rem;
+  margin-top: 6px;
+}
+
+.workout-item .split-header {
+  align-items: flex-start;
+}
+
+.workout-item form {
+  gap: 0;
+}
+
 .feature-card {
   display: grid;
   gap: 10px;

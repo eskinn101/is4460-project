@@ -3,7 +3,7 @@ from django.core.management import call_command
 from django.test import TestCase
 from django.urls import reverse
 
-from .models import HealthGoal, HealthProfile, Recommendation
+from .models import HealthGoal, HealthProfile, Recommendation, Workout
 
 
 class AppStartupTests(TestCase):
@@ -270,3 +270,89 @@ class WellnessPartnersPageTests(TestCase):
 		self.assertContains(response, "Wellness Partners")
 		self.assertContains(response, "Fresh Bowl Kitchen")
 		self.assertContains(response, "Exclusive Partner Rewards")
+
+
+class WorkoutTrackingTests(TestCase):
+	def setUp(self):
+		self.User = get_user_model()
+		self.customer = self.User.objects.create_user(
+			username="workout-customer@example.com",
+			email="workout-customer@example.com",
+			password="test-pass-123",
+			role=self.User.Roles.CUSTOMER,
+		)
+		HealthProfile.objects.create(
+			user=self.customer,
+			daily_recommendation="Keep moving steadily.",
+			wellness_focus="Consistency",
+			steps=5000,
+			water_oz=64,
+			sleep_hours=7.0,
+			workouts_per_week=3,
+		)
+
+	def test_authenticated_customer_can_log_and_view_workout(self):
+		self.client.force_login(self.customer)
+		response = self.client.post(
+			reverse("workout_create"),
+			{
+				"workout_type": Workout.WorkoutTypes.STRENGTH_TRAINING,
+				"workout_date": "2026-07-22",
+				"duration_minutes": 45,
+				"intensity": Workout.IntensityChoices.MODERATE,
+				"notes": "Upper-body session",
+			},
+		)
+
+		self.assertEqual(response.status_code, 302)
+		self.assertRedirects(response, reverse("health"))
+		self.assertTrue(Workout.objects.filter(user=self.customer).exists())
+		self.assertEqual(Workout.objects.get(user=self.customer).duration_minutes, 45)
+
+		health_response = self.client.get(reverse("health"))
+		self.assertContains(health_response, "Recent Workouts")
+		self.assertContains(health_response, "Strength Training")
+		self.assertContains(health_response, "Upper-body session")
+
+	def test_invalid_duration_shows_validation_error(self):
+		self.client.force_login(self.customer)
+		response = self.client.post(
+			reverse("workout_create"),
+			{
+				"workout_type": Workout.WorkoutTypes.WALKING,
+				"workout_date": "2026-07-22",
+				"duration_minutes": 0,
+				"intensity": Workout.IntensityChoices.LIGHT,
+			},
+		)
+
+		self.assertEqual(response.status_code, 200)
+		self.assertContains(response, "Duration must be greater than 0.")
+		self.assertFalse(Workout.objects.exists())
+
+	def test_customer_cannot_delete_another_customers_workout(self):
+		other_customer = self.User.objects.create_user(
+			username="other@example.com",
+			email="other@example.com",
+			password="test-pass-123",
+			role=self.User.Roles.CUSTOMER,
+		)
+		workout = Workout.objects.create(
+			user=other_customer,
+			workout_type=Workout.WorkoutTypes.RUNNING,
+			duration_minutes=30,
+			workout_date="2026-07-22",
+			intensity=Workout.IntensityChoices.HIGH,
+		)
+
+		self.client.force_login(self.customer)
+		response = self.client.post(reverse("workout_delete", args=[workout.pk]))
+
+		self.assertEqual(response.status_code, 404)
+		self.assertTrue(Workout.objects.filter(pk=workout.pk).exists())
+
+	def test_anonymous_users_are_redirected_from_workout_create(self):
+		response = self.client.post(reverse("workout_create"), {"workout_type": Workout.WorkoutTypes.WALKING, "duration_minutes": 20})
+
+		self.assertEqual(response.status_code, 302)
+		self.assertRedirects(response, "/?next=/workouts/create/")

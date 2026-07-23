@@ -5,10 +5,11 @@ from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required
 from django.http import Http404, HttpResponseForbidden, JsonResponse
 from django.shortcuts import redirect, render
+from django.utils import timezone
 from django.views.decorators.http import require_http_methods
 
-from .forms import ChatForm, CustomerLoginForm, CustomerRegistrationForm, EmployeeLoginForm, EmployeeRegistrationForm, HealthProfileForm, MealEntryForm, ProfileForm, RecommendationForm
-from .models import ChatMessage, HealthGoal, HealthProfile, Recommendation, User
+from .forms import ChatForm, CustomerLoginForm, CustomerRegistrationForm, EmployeeLoginForm, EmployeeRegistrationForm, HealthProfileForm, MealEntryForm, ProfileForm, RecommendationForm, WorkoutForm
+from .models import ChatMessage, HealthGoal, HealthProfile, Recommendation, User, Workout
 from .services import build_ai_guidance, build_chat_response, customer_analytics, customer_summary_payload, relevant_recommendations
 
 
@@ -418,6 +419,8 @@ def chat_view(request):
 @require_http_methods(["GET", "POST"])
 def health_view(request):
 	profile = request.user.health_profile
+	form = HealthProfileForm(instance=profile)
+	workout_form = WorkoutForm()
 	if request.method == "POST":
 		form = HealthProfileForm(request.POST, instance=profile)
 		goals_text = request.POST.get("goals", "")
@@ -429,23 +432,98 @@ def health_view(request):
 				HealthGoal.objects.create(user=request.user, title=title, sort_order=index)
 			messages.success(request, "Health plan updated.")
 			return redirect("health")
-	else:
-		form = HealthProfileForm(instance=profile)
 
 	analytics = customer_analytics(request.user)
 	ai_guidance = build_ai_guidance(request.user, analytics=analytics, recommendations=relevant_recommendations(request.user), purpose="health")
+	start_of_week = timezone.localdate() - timezone.timedelta(days=timezone.localdate().weekday())
+	end_of_week = start_of_week + timezone.timedelta(days=6)
+	weekly_workouts = request.user.workouts.filter(workout_date__range=[start_of_week, end_of_week]).order_by("-workout_date", "-created_at")
+	weekly_minutes = sum(workout.duration_minutes for workout in weekly_workouts)
+	workout_type_counts = {}
+	for workout in weekly_workouts:
+		workout_type_counts[workout.workout_type] = workout_type_counts.get(workout.workout_type, 0) + 1
+	most_common_workout_type = None
+	if workout_type_counts:
+		most_common_workout_type = max(workout_type_counts.items(), key=lambda item: (item[1], item[0]))[0]
+	weekly_goal = profile.workouts_per_week if profile.workouts_per_week > 0 else None
 	return render(
 		request,
 		"core/health.html",
 		{
 			"form": form,
+			"workout_form": workout_form,
 			"goals_text": "\n".join(request.user.health_goals.values_list("title", flat=True)),
 			"analytics": analytics,
 			"recommendations": relevant_recommendations(request.user),
 			"ai_guidance": ai_guidance,
+			"recent_workouts": request.user.workouts.all()[:10],
+			"weekly_workouts": weekly_workouts,
+			"weekly_workout_count": weekly_workouts.count(),
+			"weekly_active_minutes": weekly_minutes,
+			"most_common_workout_type": most_common_workout_type,
+			"weekly_goal": weekly_goal,
 			"active_page": "health",
 		},
 	)
+
+
+@customer_required
+@require_http_methods(["POST"])
+def workout_create_view(request):
+	profile = request.user.health_profile
+	form = HealthProfileForm(instance=profile)
+	workout_form = WorkoutForm(request.POST)
+	if workout_form.is_valid():
+		workout = workout_form.save(commit=False)
+		workout.user = request.user
+		workout.save()
+		messages.success(request, "Workout logged successfully.")
+		return redirect("health")
+
+	analytics = customer_analytics(request.user)
+	ai_guidance = build_ai_guidance(request.user, analytics=analytics, recommendations=relevant_recommendations(request.user), purpose="health")
+	start_of_week = timezone.localdate() - timezone.timedelta(days=timezone.localdate().weekday())
+	end_of_week = start_of_week + timezone.timedelta(days=6)
+	weekly_workouts = request.user.workouts.filter(workout_date__range=[start_of_week, end_of_week]).order_by("-workout_date", "-created_at")
+	weekly_minutes = sum(workout.duration_minutes for workout in weekly_workouts)
+	workout_type_counts = {}
+	for workout in weekly_workouts:
+		workout_type_counts[workout.workout_type] = workout_type_counts.get(workout.workout_type, 0) + 1
+	most_common_workout_type = None
+	if workout_type_counts:
+		most_common_workout_type = max(workout_type_counts.items(), key=lambda item: (item[1], item[0]))[0]
+	weekly_goal = profile.workouts_per_week if profile.workouts_per_week > 0 else None
+	return render(
+		request,
+		"core/health.html",
+		{
+			"form": form,
+			"workout_form": workout_form,
+			"goals_text": "\n".join(request.user.health_goals.values_list("title", flat=True)),
+			"analytics": analytics,
+			"recommendations": relevant_recommendations(request.user),
+			"ai_guidance": ai_guidance,
+			"recent_workouts": request.user.workouts.all()[:10],
+			"weekly_workouts": weekly_workouts,
+			"weekly_workout_count": weekly_workouts.count(),
+			"weekly_active_minutes": weekly_minutes,
+			"most_common_workout_type": most_common_workout_type,
+			"weekly_goal": weekly_goal,
+			"active_page": "health",
+		},
+	)
+
+
+@customer_required
+@require_http_methods(["POST"])
+def workout_delete_view(request, pk):
+	try:
+		workout = Workout.objects.get(pk=pk, user=request.user)
+	except Workout.DoesNotExist:
+		raise Http404("Workout not found.")
+	workout.delete()
+	messages.success(request, "Workout deleted.")
+	return redirect("health")
 
 
 @customer_required
