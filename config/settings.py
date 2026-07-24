@@ -25,11 +25,21 @@ SECRET_KEY = "django-insecure-trux12736ewyktkd2$fc%3q!1@ppv!hg=$_%gzwu$i7$q#4ir2
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ["*"]
 CSRF_TRUSTED_ORIGINS = [
+    "http://localhost:8000",
+    "http://127.0.0.1:8000",
+    "http://0.0.0.0:8000",
     "https://localhost:8000",
     "https://127.0.0.1:8000",
+    "https://0.0.0.0:8000",
+    "https://*.app.github.dev",
+    "http://*.app.github.dev",
+    "https://*.github.dev",
+    "http://*.github.dev",
 ]
+SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+USE_X_FORWARDED_HOST = True
 
 
 # Application definition
@@ -125,4 +135,3 @@ STATICFILES_DIRS = [BASE_DIR / "static"]
 AUTH_USER_MODEL = "core.User"
 LOGIN_URL = "/"
 LOGIN_REDIRECT_URL = "/customer/"
-ALLOWED_HOSTS = ["localhost", "127.0.0.1", ".app.github.dev"]

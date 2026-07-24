@@ -25,6 +25,12 @@ class AppStartupTests(TestCase):
 		self.assertContains(response, "Continue as customer")
 		self.assertContains(response, "Continue as employee")
 
+	def test_home_page_loads_for_forwarded_host(self):
+		response = self.client.get(reverse("home"), HTTP_HOST="preview.example.test")
+
+		self.assertEqual(response.status_code, 200)
+		self.assertContains(response, "Continue as customer")
+
 
 class LoginFlowTests(TestCase):
 	"""Confirms the seeded customer, employee, and HR/superuser accounts can always log in."""
