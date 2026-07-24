@@ -18,6 +18,7 @@
     <h2>Add a knowledge entry</h2>
     <form method="post">
       {% csrf_token %}
+      <input type="hidden" name="action" value="create_recommendation">
       <div>
         <label for="{{ form.title.id_for_label }}">Title</label>
         {{ form.title }}
@@ -36,6 +37,14 @@
       </div>
       <button type="submit">Save recommendation</button>
     </form>
+
+    {% if can_import_recommendations %}
+      <hr style="margin: 24px 0; border: 0; border-top: 1px solid rgba(13, 26, 38, 0.12);">
+      <div class="kicker">Files</div>
+      <h3 style="margin-top: 8px;">Manage machine knowledge files</h3>
+      <p style="margin-top: 0;">Open the dedicated page to upload one or many files, remove files, and review how general and customer-specific data combine.</p>
+      <a href="{% url 'recommendation_files' %}"><button type="button">Open Files Manager</button></a>
+    {% endif %}
   </article>
 
   <article class="panel">

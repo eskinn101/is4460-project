@@ -21,11 +21,13 @@
           {% if request.user.is_authenticated and request.user.role == 'customer' %}
             <a class="{% if active_page == 'customer' %}active{% endif %}" href="{% url 'customer_dashboard' %}">Home</a>
             <a class="{% if active_page == 'chat' %}active{% endif %}" href="{% url 'chat' %}">Chat</a>
+            <a class="{% if active_page == 'goals' %}active{% endif %}" href="{% url 'goals' %}">Goals</a>
             <a class="{% if active_page == 'health' %}active{% endif %}" href="{% url 'health' %}">Health</a>
             <a class="{% if active_page == 'meals' %}active{% endif %}" href="{% url 'meals' %}">Meals</a>
             <a class="{% if active_page == 'wellness_partners' %}active{% endif %}" href="{% url 'wellness_partners' %}">Wellness Partners</a>
-          {% elif request.user.is_authenticated and request.user.is_staff %}
+          {% elif request.user.is_authenticated and request.user.role == 'employee' or request.user.is_authenticated and request.user.role == 'hr' %}
             <a class="{% if active_page == 'employee' %}active{% endif %}" href="{% url 'employee_dashboard' %}">Employee Hub</a>
+            <a class="{% if active_page == 'recommendation_files' %}active{% endif %}" href="{% url 'recommendation_files' %}">Knowledge Files</a>
             {% if request.user.is_superuser %}
               <a class="{% if active_page == 'account_management' %}active{% endif %}" href="{% url 'account_management' %}">Manage Accounts</a>
             {% endif %}

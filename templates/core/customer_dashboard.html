@@ -27,6 +27,9 @@
     <span class="stat-label">Active goals</span>
     <strong>{{ analytics.goal_count }}</strong>
     <p>Current health targets used to shape guidance.</p>
+    <div class="hero-actions" style="margin-top: 10px;">
+      <a class="button goals-button" href="{% url 'goals' %}">View active goals</a>
+    </div>
   </article>
 </section>
 
@@ -49,6 +52,12 @@
 </section>
 
 <section class="grid-3" style="margin-top: 24px;">
+  <article class="feature-card">
+    <span>Goal progress</span>
+    <h3>Track active goals</h3>
+    <p>See each active goal with progress tracking, AI notes, and quick actions to manage them.</p>
+    <a class="button goals-button" href="{% url 'goals' %}">Open goals page</a>
+  </article>
   <article class="feature-card">
     <span>Chat support</span>
     <h3>Talk to the bot and a coach</h3>

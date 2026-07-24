@@ -121,8 +121,23 @@ USE_TZ = True
 
 STATIC_URL = "static/"
 STATICFILES_DIRS = [BASE_DIR / "static"]
+MEDIA_URL = "/media/"
+MEDIA_ROOT = BASE_DIR / "media"
 
 AUTH_USER_MODEL = "core.User"
 LOGIN_URL = "/"
 LOGIN_REDIRECT_URL = "/customer/"
 ALLOWED_HOSTS = ["localhost", "127.0.0.1", ".app.github.dev"]
+
+# Allow larger HR recommendation data imports (CSV/ZIP).
+DATA_UPLOAD_MAX_MEMORY_SIZE = None
+FILE_UPLOAD_MAX_MEMORY_SIZE = 100 * 1024 * 1024
+
+CACHES = {
+    "default": {
+        "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+        "LOCATION": "moderation-cache",
+    }
+}
+
+EXTERNAL_API_CACHE_TTL_SECONDS = 12 * 60 * 60

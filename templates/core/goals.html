@@ -1,0 +1,82 @@
+{% extends 'core/base.html' %}
+
+{% block title %}Moderation | Goals{% endblock %}
+{% block brand_subtitle %}Goal Tracking{% endblock %}
+
+{% block content %}
+<section class="page-header">
+  <span class="eyebrow">Goal progress</span>
+  <h1>Your active goals and progress tracking.</h1>
+  <p>
+    This page tracks all active goals using your saved analytics. When available, Gemini also contributes progress notes for each goal.
+  </p>
+</section>
+
+<section class="stats-grid">
+  <article class="stat">
+    <span class="stat-label">Active goals</span>
+    <strong>{{ goal_snapshot.goals|length }}</strong>
+    <p>Current goals in your customer profile.</p>
+  </article>
+  <article class="stat">
+    <span class="stat-label">Consistency score</span>
+    <strong>{{ goal_snapshot.analytics.consistency_score }}</strong>
+    <p>Used as one signal in progress scoring.</p>
+  </article>
+  <article class="stat">
+    <span class="stat-label">AI progress mode</span>
+    <strong>{% if goal_snapshot.uses_ai %}Gemini + analytics{% else %}Analytics fallback{% endif %}</strong>
+    <p>Gemini notes appear when API output is available.</p>
+  </article>
+</section>
+
+<section class="panel" style="margin-top: 24px;">
+  <div class="kicker">All active goals</div>
+  <h2>Progress details</h2>
+  <div class="list-stack">
+    {% for goal in goal_snapshot.goals %}
+      <article class="list-item">
+        <div class="split-header">
+          <div>
+            <strong>{{ goal.title }}</strong>
+            <p>Status: {{ goal.status|title }} • Progress: {{ goal.progress_percent }}%</p>
+          </div>
+          <a class="button secondary" href="{% url 'health' %}?edit_goal={{ goal.id }}">Edit goal</a>
+        </div>
+        <div style="margin-top: 10px; background: rgba(30, 74, 49, 0.12); border-radius: 999px; overflow: hidden; height: 12px;">
+          <div style="height: 12px; width: {{ goal.progress_percent }}%; background: linear-gradient(145deg, #2f8f2f, #57c357);"></div>
+        </div>
+        <p style="margin-top: 10px;">{{ goal.note }}</p>
+      </article>
+    {% empty %}
+      <article class="list-item">
+        <strong>No active goals yet.</strong>
+        <p>Create one from Chat or on your Health page.</p>
+      </article>
+    {% endfor %}
+  </div>
+</section>
+
+<section class="grid-2" style="margin-top: 24px;">
+  <article class="panel">
+    <div class="kicker">Goal actions</div>
+    <h2>Manage your goals</h2>
+    <p>Create, edit, or remove goals from either page below.</p>
+    <div class="hero-actions" style="margin-top: 12px;">
+      <a class="button goals-button" href="{% url 'health' %}">Open Health goals tools</a>
+      <a class="button secondary" href="{% url 'chat' %}">Open Chat and say: My goal is...</a>
+    </div>
+  </article>
+
+  <article class="panel">
+    <div class="kicker">Signals used</div>
+    <h2>Current analytics snapshot</h2>
+    <div class="list-stack">
+      <article class="list-item"><p>Steps: {{ goal_snapshot.analytics.steps }}</p></article>
+      <article class="list-item"><p>Hydration: {{ goal_snapshot.analytics.water_oz }} oz</p></article>
+      <article class="list-item"><p>Sleep: {{ goal_snapshot.analytics.sleep_hours }} hours</p></article>
+      <article class="list-item"><p>Workouts/week: {{ goal_snapshot.analytics.workouts_per_week }}</p></article>
+    </div>
+  </article>
+</section>
+{% endblock %}

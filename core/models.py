@@ -97,6 +97,68 @@ class Recommendation(models.Model):
 		ordering = ["-created_at"]
 
 
+class RecommendationDataFile(models.Model):
+	file = models.FileField(upload_to="recommendation_uploads/")
+	original_name = models.CharField(max_length=255)
+	imported_rows = models.PositiveIntegerField(default=0)
+	uploaded_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name="uploaded_recommendation_files")
+	uploaded_at = models.DateTimeField(auto_now_add=True)
+
+	class Meta:
+		ordering = ["-uploaded_at", "-id"]
+
+	def __str__(self):
+		return self.original_name
+
+
+class BotBehaviorConfig(models.Model):
+	instructions = models.TextField(
+		default=(
+			"Keep guidance practical, supportive, and non-judgmental. "
+			"Use only the supplied customer profile and recommendation data. "
+			"Do not provide medical diagnosis or treatment advice."
+		)
+	)
+	updated_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name="updated_bot_behavior_configs")
+	updated_at = models.DateTimeField(auto_now=True)
+
+	def __str__(self):
+		return "Bot Behavior Configuration"
+
+
+class CustomerBotBehaviorOverride(models.Model):
+	user = models.OneToOneField(User, on_delete=models.CASCADE, related_name="bot_behavior_override")
+	instructions = models.TextField(blank=True)
+	updated_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name="updated_customer_bot_behavior_overrides")
+	updated_at = models.DateTimeField(auto_now=True)
+
+	class Meta:
+		ordering = ["user_id"]
+
+	def __str__(self):
+		return f"Behavior override for {self.user}"
+
+
+class BotBehaviorRevision(models.Model):
+	class Scopes(models.TextChoices):
+		GLOBAL = "global", "Global"
+		CUSTOMER = "customer", "Customer"
+
+	scope = models.CharField(max_length=20, choices=Scopes.choices)
+	customer = models.ForeignKey(User, on_delete=models.CASCADE, null=True, blank=True, related_name="bot_behavior_revisions")
+	instructions = models.TextField()
+	updated_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name="created_bot_behavior_revisions")
+	created_at = models.DateTimeField(auto_now_add=True)
+
+	class Meta:
+		ordering = ["-created_at", "-id"]
+
+	def __str__(self):
+		if self.scope == self.Scopes.CUSTOMER and self.customer:
+			return f"Customer behavior revision for {self.customer}"
+		return "Global behavior revision"
+
+
 class MealEntry(models.Model):
 	class MealTimes(models.TextChoices):
 		BREAKFAST = "Breakfast", "Breakfast"

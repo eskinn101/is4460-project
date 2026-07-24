@@ -1,7 +1,8 @@
 from django import forms
 from django.utils import timezone
+from urllib.parse import urlparse
 
-from .models import ChatMessage, HealthProfile, MealEntry, Recommendation, User, Workout
+from .models import BotBehaviorConfig, ChatMessage, CustomerBotBehaviorOverride, HealthProfile, MealEntry, Recommendation, User, Workout
 
 
 class LoginForm(forms.Form):
@@ -118,6 +119,124 @@ class RecommendationForm(forms.ModelForm):
         widgets = {
             "guidance": forms.Textarea(attrs={"rows": 4}),
             "analytics_focus": forms.TextInput(attrs={"placeholder": "Hydration, recovery, meal consistency..."}),
+        }
+
+
+class RecommendationImportForm(forms.Form):
+    file = forms.FileField(help_text="Upload a CSV file, or a ZIP that contains one CSV file, with title, category, guidance, and optional analytics_focus columns.")
+    replace_existing = forms.BooleanField(
+        required=False,
+        initial=False,
+        help_text="Replace all current recommendations before importing.",
+    )
+
+    def clean_file(self):
+        uploaded_file = self.cleaned_data["file"]
+        file_name = uploaded_file.name.lower()
+        if not (file_name.endswith(".csv") or file_name.endswith(".zip")):
+            raise forms.ValidationError("Please upload a CSV file or a ZIP file that contains a CSV.")
+        return uploaded_file
+
+
+class MultipleFileInput(forms.ClearableFileInput):
+    allow_multiple_selected = True
+
+
+class MultipleFileField(forms.FileField):
+    def clean(self, data, initial=None):
+        single_file_clean = super().clean
+        if isinstance(data, (list, tuple)):
+            return [single_file_clean(item, initial) for item in data]
+        return [single_file_clean(data, initial)]
+
+
+class RecommendationMultiImportForm(forms.Form):
+    files = MultipleFileField(
+        widget=MultipleFileInput(attrs={"multiple": True}),
+        help_text="Select one or multiple CSV/ZIP files.",
+    )
+    replace_existing = forms.BooleanField(
+        required=False,
+        initial=False,
+        help_text="Replace current recommendation library before importing the first file.",
+    )
+
+    def clean_files(self):
+        uploaded_files = self.cleaned_data["files"]
+        if not uploaded_files:
+            raise forms.ValidationError("Select at least one file to upload.")
+
+        for uploaded_file in uploaded_files:
+            file_name = uploaded_file.name.lower()
+            if not (file_name.endswith(".csv") or file_name.endswith(".zip")):
+                raise forms.ValidationError("All files must be CSV or ZIP.")
+
+        return uploaded_files
+
+
+class RecommendationRemoteImportForm(forms.Form):
+    source_path = forms.CharField(
+        required=False,
+        label="Server file path",
+        help_text="Example: /workspaces/is4460-project/data/recommendations.csv",
+    )
+    source_url = forms.URLField(
+        required=False,
+        label="Source URL",
+        help_text="Optional: direct URL to a CSV or ZIP file.",
+    )
+    replace_existing = forms.BooleanField(
+        required=False,
+        initial=False,
+        help_text="Replace current recommendation library before importing this source.",
+    )
+
+    def clean(self):
+        cleaned_data = super().clean()
+        source_path = (cleaned_data.get("source_path") or "").strip()
+        source_url = (cleaned_data.get("source_url") or "").strip()
+
+        if bool(source_path) == bool(source_url):
+            raise forms.ValidationError("Provide either a server file path or a source URL.")
+
+        candidate = source_path
+        if source_url:
+            candidate = urlparse(source_url).path
+
+        lowered = candidate.lower()
+        if not (lowered.endswith(".csv") or lowered.endswith(".zip")):
+            raise forms.ValidationError("Source must point to a CSV or ZIP file.")
+
+        cleaned_data["source_path"] = source_path
+        cleaned_data["source_url"] = source_url
+        return cleaned_data
+
+
+class BotBehaviorConfigForm(forms.ModelForm):
+    class Meta:
+        model = BotBehaviorConfig
+        fields = ["instructions"]
+        widgets = {
+            "instructions": forms.Textarea(
+                attrs={
+                    "rows": 8,
+                    "placeholder": "Example: prioritize hydration and sleep guidance first, keep responses under 120 words, and avoid medical advice.",
+                }
+            ),
+        }
+
+
+class CustomerBotBehaviorOverrideForm(forms.ModelForm):
+    class Meta:
+        model = CustomerBotBehaviorOverride
+        fields = ["instructions"]
+        widgets = {
+            "instructions": forms.Textarea(
+                attrs={
+                    "rows": 6,
+                    "placeholder": "Optional override for this customer: for example, emphasize sleep consistency before exercise tips.",
+                }
+            ),
         }
 
 
